@@ -34,8 +34,12 @@ Hubble 的第 2–4 步（[执行方案](../../docs/research-plan.md)）。这�
 | OKX 公开接口 | 同上（symbol 写成 `BTC-USDT`，永续自动用 `BTC-USDT-SWAP`） | 不要 key | 同上 |
 | Twelve Data | 美股和 ETF 日线收盘 | `TWELVEDATA_API_KEY`（免费档） | 每天一次，每个标的一次请求 |
 | FRED | 标普 500、纳指、VIX、美债收益率、实际利率、美元指数、汇率、WTI 与 Brent 现货 | `FRED_API_KEY`（免费） | 每天一次 |
+| Deribit 公开接口 | BTC、ETH 隐含波动率指数（DVOL），投机市场循环里的“波动率”环节 | 不要 key | 每天一次 |
+| DefiLlama | 稳定币总供应（美元计） | 不要 key | 每天一次 |
+| CFTC 公开数据（COT 传统报告，仅期货） | CME 比特币、以太坊期货，COMEX 黄金，NYMEX WTI 原油的非商业净持仓（多 − 空）和总持仓 | 不要 key | 每天查一次，数据每周五更新（描述当周二） |
+| EIA Open Data | 美国商业原油库存（不含战略储备，千桶） | `EIA_API_KEY`（免费） | 每天查一次，数据每周三更新 |
 
-这些接口在写代码的机器上都连不上，只用本地假服务测过。部署到香港服务器后，先实测再用：
+这些接口在写代码的机器上都连不上，只用本地假服务测过。CFTC 的合约市场代码（BTC 133741、ETH 146021、黄金 088691、WTI 067651）和 EIA 的序列（WCESTUS1）也要在服务器上实测，取不到数据会在运行结果里写明。部署到香港服务器后，先实测再用：
 
 1. 在 `.env` 里设 `COLLECT_ENABLED=true`，重启 worker。
 2. 看后台“运行”页里 `research.snapshots` 和 `research.daily` 的结果，失败的标的会写出原因。
@@ -66,6 +70,10 @@ Hubble 的第 2–4 步（[执行方案](../../docs/research-plan.md)）。这�
 - **资金先动，讨论未扩散**：有资金异动，但 48 小时内报道它的来源很少。
 - **传播在扩散**：48 小时内的独立来源够多，并且比前 48 小时多。
 - **传播扩散，价格未明显反应**：在“传播在扩散”的基础上，24 小时涨跌还很小。
+
+期货净持仓会穿过 0，按“张”看变化，不算百分比（目录里写 `"move": "points"`）；周更的 CFTC、EIA 超过 12 天没有新值才算过期。
+
+候选卡除了标的自己的指标，还能看到相关的背景序列（编号 `rel.<id>`）：同一实体的（BTC 的 DVOL 和 CME 净持仓，原油的库存和净持仓），以及同一市场里没有实体的（加密看稳定币总供应，美股看指数和 SPY、QQQ）。
 
 ## 事件日历
 
@@ -132,6 +140,16 @@ curl -X POST http://<主机>:3000/api/research/theses/<id>/revisions -H "Authori
 
 已结束的判断只能追加笔记，不能重新打开。
 
+## 命中率复盘
+
+从判断档案里每条判断结束时的复盘算出来，不另存数据：
+
+- 命中率 = 已触发 ÷（已触发 + 已失效 + 到期），撤销的不计入；
+- 平均涨跌，以及相对 BTC（加密）或 SPY（其他）的平均超额；
+- 按市场、按开立时卡上的证据（资本＋规则、只有资本、只有规则、站长开立）、按开立方分组。
+
+`/theses` 顶部显示最近 30 天的结果；每周一的研究简报带一段“上周复盘”。样本少于 10 条时只作参考：触发条件可能朝上也可能朝下，涨跌幅不等于对错。
+
 ## 读取
 
 | 地址 | 内容 |
@@ -147,8 +165,10 @@ curl -X POST http://<主机>:3000/api/research/theses/<id>/revisions -H "Authori
 | `GET /api/research/events?days=21&instrument=sol` | 事件日历的 JSON（`days` 是 1–90，`instrument` 可选） |
 | MCP `hubble_list_events` | 同上，参数 `days`、`instrument` 都可选 |
 | `GET /api/research/briefs/latest`、`/api/research/briefs/<日期>` | 研究简报的 JSON |
+| `GET /api/research/review?days=7\|30\|90\|all` | 命中率复盘的 JSON |
+| MCP `hubble_get_review` | 同上，参数 `days` |
 | `GET /api/research/theses?status=open\|ended\|all`、`/api/research/theses/<id>` | 判断档案的 JSON |
 | MCP `hubble_get_brief`、`hubble_get_thesis` | 研究简报（可带 `date`）；判断档案（不带 `id` 列进行中的，带 `id` 给全部修订） |
-| `/api/v1/agent/instruments`、`/events`、`/brief`、`/theses` | 给只能读网页的 Agent 的 Markdown |
+| `/api/v1/agent/instruments`、`/events`、`/brief`、`/theses`、`/review` | 给只能读网页的 Agent 的 Markdown |
 
 快照保留 30 天，日线永久保留。

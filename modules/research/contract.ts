@@ -2,7 +2,7 @@
 // watchlist page), and the few ways the page and the Markdown answers write its numbers.
 
 export type Market = "crypto" | "equities" | "commodities" | "fx" | "macro";
-export type Kind = "crypto" | "stock" | "etf" | "index" | "rate" | "fx" | "commodity-spot";
+export type Kind = "crypto" | "stock" | "etf" | "index" | "rate" | "fx" | "commodity-spot" | "positioning" | "inventory" | "supply";
 export type WatchState = "nominated" | "watching" | "dropped";
 
 export interface PerpView {
@@ -30,7 +30,11 @@ export interface QuoteView {
   /** 24 hours for a snapshot, the previous value for a daily series. As a fraction; null for rates. */
   change1d: number | null;
   change7d: number | null;
-  /** Rates and yields move in points, not percent: their changes in their own unit (null for the rest). */
+  /**
+   * Read in points, not percent: a rate or yield, or a figure that can cross zero (a net position). Its
+   * changes are then in its own unit (changePoints*), and change1d / change7d are null.
+   */
+  points: boolean;
   changePoints1d: number | null;
   changePoints7d: number | null;
   /** Standard deviation of the last 30 daily log returns. */
@@ -160,9 +164,10 @@ export function formatPercent(value: number | null, digits = 2): string {
 
 /** The day's move in the way its kind is read: points for a rate, percent for the rest. */
 export function formatMove(q: QuoteView, which: "1d" | "7d"): string {
-  if (q.unit === "%") {
+  if (q.points) {
     const points = which === "1d" ? q.changePoints1d : q.changePoints7d;
-    return points === null ? "—" : `${points > 0 ? "+" : ""}${points.toFixed(2)} 个百分点`;
+    if (points === null) return "—";
+    return `${points > 0 ? "+" : ""}${q.unit === "%" ? `${points.toFixed(2)} 个百分点` : `${formatNumber(points)}${q.unit ? ` ${q.unit}` : ""}`}`;
   }
   return formatPercent(which === "1d" ? q.change1d : q.change7d);
 }
@@ -267,6 +272,40 @@ export interface Brief {
   context: InstrumentView[];
   /** What failed while writing it (a model call, a card that broke the rules), so a thin brief says why. */
   problems: string[];
+  /** On Mondays: how the judgments that ended in the last 7 days turned out. */
+  weekly?: ReviewStats | null;
 }
 
 export const BRIEF_NOTE = "候选卡只依据站内数据与公开报道：证据都带出处，缺的写在“缺口”里；没有合格候选就少给。这不是买卖建议，也不是价格预测。";
+
+// ── Hit rates (backend/review.ts) ────────────────────────────────────────────────────────────────────
+
+export interface ReviewGroup {
+  label: string;
+  /** Judgments that ended in the window, the withdrawn left out of the rates. */
+  ended: number;
+  triggered: number;
+  invalidated: number;
+  expired: number;
+  withdrawn: number;
+  /** triggered / (triggered + invalidated + expired); null without one of those. */
+  hitRate: number | null;
+  /** Mean price change from opening to end, and mean of (change − benchmark change) where both are known. */
+  meanChange: number | null;
+  meanExcess: number | null;
+}
+
+export interface ReviewStats {
+  generatedAt: string;
+  /** "7", "30", "90" days back, or "all". */
+  window: string;
+  note: string;
+  overall: ReviewGroup;
+  byMarket: ReviewGroup[];
+  /** By what the judgment's first card stood on: money and rules, money only, rules only, the owner's own. */
+  byEvidence: ReviewGroup[];
+  byOrigin: ReviewGroup[];
+  recent: Array<{ thesisId: number; instrumentName: string; status: ThesisStatus; endedAt: string; change: number | null; excess: number | null; hit: string | null }>;
+}
+
+export const REVIEW_NOTE = "命中率 = 已触发 ÷（已触发 + 已失效 + 到期），撤销的不计入。样本少于 10 条时只作参考；触发条件可能朝上也可能朝下，涨跌幅不等于对错。这是对自己判断的复盘，不是策略回测。";

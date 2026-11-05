@@ -3,7 +3,7 @@
 // (job_runs), and a source that stays silent shows as stale data (alerts in server.ts).
 import { sql } from "@aihot/backend/db";
 import { CATALOG, type Instrument } from "./catalog.ts";
-import { crypto, daily, sourceKey, type Day } from "./sources.ts";
+import { KEY_NAMES, crypto, daily, sourceKey, type Day } from "./sources.ts";
 
 export interface RunResult {
   ok: string[];
@@ -53,14 +53,14 @@ export async function collectDaily(now = new Date()): Promise<RunResult> {
     try {
       let days: Day[];
       if (i.quote.source === "binance" || i.quote.source === "okx") days = await crypto[i.quote.source].days(i.quote.symbol, now);
-      else {
+      else if (i.quote.source === "fred" || i.quote.source === "twelvedata" || i.quote.source === "eia") {
         const key = sourceKey(i.quote.source);
         if (!key) {
-          result.skipped[i.id] = `${i.quote.source === "fred" ? "FRED_API_KEY" : "TWELVEDATA_API_KEY"} is not set`;
+          result.skipped[i.id] = `${KEY_NAMES[i.quote.source]} is not set`;
           continue;
         }
         days = await daily[i.quote.source](i.quote.symbol, key);
-      }
+      } else days = await daily[i.quote.source](i.quote.symbol, null, now);
       await saveDays(i.id, i.quote.source, days);
       result.ok.push(i.id);
     } catch (error) {

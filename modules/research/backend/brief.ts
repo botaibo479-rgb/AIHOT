@@ -3,16 +3,17 @@
 // model calls), then everything in one brief per Beijing date, written once. A candidate opens a judgment;
 // a lead is only listed. When the model cannot be asked, the brief still carries the checks, the events and
 // the market, and says why it has no cards.
-import { beijingDate } from "@aihot/contracts/time";
+import { beijingDate, beijingWeekday } from "@aihot/contracts/time";
 import { sql } from "@aihot/backend/db";
 import { modelRoute } from "@aihot/backend/editorial/models";
 import { promptText, promptVersion } from "@aihot/backend/editorial/prompts";
 import { chatJson } from "@aihot/backend/providers/llm";
 import { completeReceipt, failureKind } from "@aihot/backend/providers/receipts";
 import { BRIEF_NOTE, OPEN_STATUSES, type Brief, type BriefEntry, type InstrumentView } from "../contract.ts";
-import { CardSchema, acceptCard, cardInput, recentReports } from "./cards.ts";
+import { CardSchema, acceptCard, cardInput, recentReports, relatedOf } from "./cards.ts";
 import { listEvents } from "./events.ts";
 import { listInstruments } from "./read.ts";
+import { reviewStats } from "./review.ts";
 import { checkTheses, listTheses, openThesis } from "./theses.ts";
 
 const MAX_CARDS = 8;
@@ -55,7 +56,7 @@ export async function composeBrief(now = new Date()): Promise<{ day: string; wri
     const system = promptText("research-card", { today: day });
     const version = promptVersion("research-card");
     for (const v of picked) {
-      const given = cardInput(v, await recentReports(v.entityId!, now), v.upcoming, now);
+      const given = cardInput(v, await recentReports(v.entityId!, now), v.upcoming, now, relatedOf(v, list.instruments));
       try {
         const res = await chatJson({ model, fallbackModel, purpose: "research_card", subject: `${day}:${v.id}`, promptVersion: version, system, user: JSON.stringify(given.input), schema: CardSchema, temperature: 0.2, maxTokens: 2500 });
         receipts.push(res.receiptId);
@@ -86,6 +87,7 @@ export async function composeBrief(now = new Date()): Promise<{ day: string; wri
     watchlist: list.instruments.filter((v) => v.watch?.state === "watching"),
     context: list.instruments.filter((v) => v.role === "context"),
     problems,
+    weekly: beijingWeekday(day) === "星期一" ? await reviewStats(7, now) : null,
   };
   await sql`INSERT INTO research_briefs (day, generated_at, content, receipt_ids) VALUES (${day}::date, ${now}, ${sql.json(brief as never)}, ${receipts}) ON CONFLICT (day) DO NOTHING`;
   return { day, written: true, candidates: candidates.length, leads: leads.length, problems };

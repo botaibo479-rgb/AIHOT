@@ -47,6 +47,9 @@ installModules([research]);
 const { addOwnerEvent } = await import("../backend/events.ts");
 const { composeBrief } = await import("../backend/brief.ts");
 const { checkTheses, getThesis, listTheses } = await import("../backend/theses.ts");
+const { reviewStats } = await import("../backend/review.ts");
+const { relatedOf } = await import("../backend/cards.ts");
+const { listInstruments } = await import("../backend/read.ts");
 const { buildApp } = await import("../../../apps/api/src/app.ts");
 const app = await buildApp();
 
@@ -147,4 +150,29 @@ test("the owner's judgments and notes need the token, append only, and an ended 
   assert.match((await tool("get_thesis").run({ id: 999999 })).text, /没有编号为 999999 的判断/);
   const list = await app.inject({ method: "GET", url: "/api/research/theses?status=ended" });
   assert.ok((JSON.parse(list.body) as { theses: Array<{ id: number }> }).theses.some((x) => x.id === id));
+});
+
+test("hit rates count what ended in the window, by market and by what the first card stood on", async () => {
+  const all = await reviewStats(null, later(6));
+  assert.deepEqual([all.overall.ended, all.overall.triggered, all.overall.expired, all.overall.hitRate], [2, 1, 1, 0.5]);
+  assert.ok(Math.abs(all.overall.meanChange! - (116 / 110 - 1)) < 1e-9, "a judgment without prices does not count in the mean");
+  assert.deepEqual(all.byEvidence.map((g) => g.label).sort(), ["站长开立", "资本＋规则"]);
+  assert.deepEqual(all.byMarket.map((g) => [g.label, g.ended]).sort(), [["加密", 1], ["美股港股", 1]]);
+  assert.equal((await reviewStats(7, later(30))).overall.ended, 0, "outside the window");
+  assert.equal((await app.inject({ method: "GET", url: "/api/research/review?days=5" })).statusCode, 400);
+  const tool = research.agent!.abilities!.find((a) => a.mcp.tool === "get_review")!.mcp;
+  // The tool reads the real clock, before these fixtures end; the wording is the same.
+  assert.match((await tool.run({ days: "all" })).text, /# Hubble 判断复盘：全部结束的判断/);
+
+  // Monday's brief carries the week's review.
+  const monday = await composeBrief(new Date("2026-11-09T01:00:00Z"));
+  assert.equal(monday.written, true);
+  const [row] = await sql<{ content: { weekly: { overall: { ended: number } } | null } }[]>`SELECT content FROM research_briefs WHERE day = '2026-11-09'`;
+  assert.equal(row!.content.weekly!.overall.ended, 1, "only what ended before Monday: the other one ends on the 10th");
+});
+
+test("a card sees the background series of its entity and its market", async () => {
+  await sql`INSERT INTO research_daily (instrument_id, day, source, close) VALUES ('btc-dvol', '2026-11-04', 'deribit', 55), ('stablecoin-supply', '2026-11-04', 'defillama', 3e11), ('cot-gold', '2026-11-03', 'cftc', 100)`;
+  const views = (await listInstruments(NOW)).instruments;
+  assert.deepEqual(relatedOf(views.find((v) => v.id === "btc")!, views).map((v) => v.id).sort(), ["btc-dvol", "stablecoin-supply"]);
 });

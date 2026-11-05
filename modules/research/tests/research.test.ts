@@ -12,6 +12,7 @@ process.env.ALLOW_PRIVATE_NETWORK_FETCH = "true";
 process.env.INGEST_TOKEN = "research-test-ingest-token-0123";
 delete process.env.FRED_API_KEY;
 delete process.env.TWELVEDATA_API_KEY;
+delete process.env.EIA_API_KEY;
 
 const { sql, closeDb } = await import("@aihot/backend/db");
 const { installModules } = await import("@aihot/backend/modules");
@@ -61,6 +62,17 @@ function answer(url: URL): { status: number; body: unknown } {
     if (url.searchParams.get("symbol") === "COIN") return { status: 200, body: { status: "error", code: 429, message: "API credits exhausted" } };
     return { status: 200, body: { status: "ok", values: [{ datetime: "2026-11-04", close: "50", volume: "300" }, { datetime: "2026-11-03", close: "49", volume: "100" }] } };
   }
+  // DVOL: one candle a UTC day, today's still forming.
+  if (p === "/api/v2/public/get_volatility_index_data") return { status: 200, body: { result: { data: Array.from({ length: 10 }, (_, k) => [dayOpen(9 - k), "50", "52", "48", k === 8 ? "55" : "50"]) } } };
+  if (p === "/stablecoincharts/all") return { status: 200, body: [{ date: String(dayOpen(2) / 1000), totalCirculatingUSD: { peggedUSD: 300e9 } }, { date: String(dayOpen(1) / 1000), totalCirculatingUSD: { peggedUSD: 303e9 } }] };
+  if (p === "/resource/6dca-aqww.json") {
+    if (!url.searchParams.get("$where")?.includes("'133741'")) return { status: 200, body: [] };
+    return { status: 200, body: [
+      { report_date_as_yyyy_mm_dd: "2026-11-03T00:00:00.000", noncomm_positions_long_all: "1000", noncomm_positions_short_all: "1500", open_interest_all: "30000" },
+      { report_date_as_yyyy_mm_dd: "2026-10-27T00:00:00.000", noncomm_positions_long_all: "1200", noncomm_positions_short_all: "1100", open_interest_all: "28000" },
+    ] };
+  }
+  if (p === "/v2/petroleum/stoc/wstk/data/") return { status: 200, body: { response: { data: [{ period: "2026-10-30", value: 421000 }, { period: "2026-10-23", value: 425000 }] } } };
   return { status: 404, body: {} };
 }
 
@@ -71,7 +83,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-Object.assign(ENDPOINTS, { binanceSpot: base, binanceFutures: base, okx: base, fred: base, twelvedata: base });
+Object.assign(ENDPOINTS, { binanceSpot: base, binanceFutures: base, okx: base, fred: base, twelvedata: base, deribit: base, defillama: base, cftc: base, eia: base });
 
 const app = await buildApp();
 const SOURCES = [1, 2, 3].map((k) => `research-${T}-${k}`);
@@ -123,9 +135,12 @@ test("daily series: a missing key is skipped, a holiday is no value, one failure
   const unkeyed = await collectDaily(NOW);
   assert.equal(unkeyed.skipped.dgs10, "FRED_API_KEY is not set");
   assert.equal(unkeyed.skipped.spy, "TWELVEDATA_API_KEY is not set");
+  assert.equal(unkeyed.skipped["crude-stocks"], "EIA_API_KEY is not set");
+  assert.ok(unkeyed.ok.includes("btc-dvol") && unkeyed.ok.includes("stablecoin-supply") && unkeyed.ok.includes("cot-btc"), "the free series need no key");
 
   process.env.FRED_API_KEY = "fred-test-key";
   process.env.TWELVEDATA_API_KEY = "twelvedata-test-key";
+  process.env.EIA_API_KEY = "eia-test-key";
   try {
     const run = await collectDaily(NOW);
     assert.match(run.failed.coin!, /API credits exhausted/);
@@ -133,6 +148,7 @@ test("daily series: a missing key is skipped, a holiday is no value, one failure
   } finally {
     delete process.env.FRED_API_KEY;
     delete process.env.TWELVEDATA_API_KEY;
+    delete process.env.EIA_API_KEY;
   }
   const rate = (await instrumentDetail("dgs10", NOW))!;
   assert.deepEqual(rate.daily.map((d) => d.day), ["2026-10-27", "2026-10-28", "2026-10-30", "2026-11-02", "2026-11-04"]);
@@ -142,6 +158,15 @@ test("daily series: a missing key is skipped, a holiday is no value, one failure
   const spy = (await instrumentDetail("spy", NOW))!;
   assert.equal(spy.quote!.label, "Twelve Data 日线收盘 SPY");
   assert.ok(Math.abs(spy.quote!.change1d! - (50 / 49 - 1)) < 1e-9);
+  const dvol = (await instrumentDetail("btc-dvol", NOW))!;
+  assert.equal(dvol.daily.at(-1)!.day, "2026-11-04", "today's volatility candle is still forming");
+  assert.equal(dvol.quote!.price, 55);
+  // A net position crosses zero: read in contracts, not percent.
+  const cot = (await instrumentDetail("cot-btc", NOW))!;
+  assert.deepEqual([cot.quote!.price, cot.quote!.points, cot.quote!.change1d, cot.quote!.changePoints1d], [-500, true, null, -600]);
+  assert.equal(cot.quote!.stale, false, "a weekly series is not stale within its week");
+  assert.equal((await instrumentDetail("crude-stocks", NOW))!.quote!.price, 421000);
+  assert.ok(Math.abs((await instrumentDetail("stablecoin-supply", NOW))!.quote!.change1d! - 0.01) < 1e-9);
   const tencent = (await instrumentDetail("tencent", NOW))!;
   assert.equal(tencent.quote, null);
   assert.match(tencent.quoteNote!, /港股/);
@@ -191,7 +216,7 @@ test("the JSON, the owner's write and the Agent tool", async () => {
 test("an instrument's topic page carries its quote; old snapshots go, daily closes stay", async () => {
   const page = (await loadTopicPage("bitcoin", 1, NOW))!;
   const views = page.modules.research as Array<{ id: string }>;
-  assert.deepEqual(views.map((v) => v.id), ["btc"]);
+  assert.deepEqual(views.map((v) => v.id), ["btc", "btc-dvol", "cot-btc"], "the price, its volatility and its futures positioning");
   assert.equal(await loadTopicPage("fed", 1, NOW).then((p) => (p!.modules.research as Array<{ id: string }>).map((v) => v.id).join()), "fed-upper");
 
   await sql`INSERT INTO research_quotes (instrument_id, at, source, price) VALUES ('btc', ${new Date(NOW.getTime() - 40 * DAY)}, 'binance', 90)`;

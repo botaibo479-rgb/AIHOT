@@ -11,6 +11,7 @@ import type { Screen } from "@aihot/web/components/shell/screens";
 import { STATUS_LABELS, formatEventDate, type Brief, type BriefEntry, type EventView } from "../contract.ts";
 import { CardView } from "./CardView.tsx";
 import { QuoteCard } from "./QuoteCard.tsx";
+import { ReviewSummary } from "./ReviewSummary.tsx";
 
 export const handle: Screen = { tab: "me", name: "研究简报" };
 export { pageHeaders as headers } from "@aihot/web/lib/api.server";
@@ -98,6 +99,7 @@ export default function BriefPage() {
               <h2 className="text-[15px] font-semibold text-ink">市场背景</h2>
               <div className="mt-3 space-y-2">{brief.context.filter((v) => v.quote).map((v) => <QuoteCard key={v.id} view={v} />)}</div>
             </section>
+            {brief.weekly && <ReviewSummary stats={brief.weekly} title="上周复盘" />}
             {brief.problems.length > 0 && (
               <section className="mb-8">
                 <h2 className="text-[15px] font-semibold text-ink">生成时的问题</h2>

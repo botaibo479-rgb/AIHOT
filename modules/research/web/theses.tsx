@@ -8,14 +8,19 @@ import { AsideCard, ReadingLayout } from "@aihot/web/components/ui/Page";
 import { Badge } from "@aihot/web/components/ui/Badge";
 import { PhoneBar } from "@aihot/web/components/shell/PhoneBar";
 import type { Screen } from "@aihot/web/components/shell/screens";
-import { OPEN_STATUSES, STATUS_LABELS, formatNumber, formatPercent, type Review, type Revision, type ThesisView } from "../contract.ts";
+import { OPEN_STATUSES, STATUS_LABELS, formatNumber, formatPercent, type Review, type ReviewStats, type Revision, type ThesisView } from "../contract.ts";
 import { CardView } from "./CardView.tsx";
+import { ReviewSummary } from "./ReviewSummary.tsx";
 
 export const handle: Screen = { tab: "me", name: "判断档案" };
 export { pageHeaders as headers } from "@aihot/web/lib/api.server";
 
 export async function loader({ request }: { request: Request }) {
-  return cachedPage(30, await apiGet<{ theses: ThesisView[] }>("/api/research/theses", { signal: request.signal }));
+  const [list, review] = await Promise.all([
+    apiGet<{ theses: ThesisView[] }>("/api/research/theses", { signal: request.signal }),
+    apiGet<ReviewStats>("/api/research/review?days=30", { signal: request.signal }),
+  ]);
+  return cachedPage(30, { ...list, review });
 }
 
 export function meta() {
@@ -56,7 +61,7 @@ function Thesis({ t }: { t: ThesisView }) {
 }
 
 export default function ThesesPage() {
-  const { theses } = useLoaderData<typeof loader>();
+  const { theses, review } = useLoaderData<typeof loader>();
   const open = theses.filter((t) => OPEN_STATUSES.includes(t.status));
   const ended = theses.filter((t) => !OPEN_STATUSES.includes(t.status));
   const aside = (
@@ -75,6 +80,7 @@ export default function ThesesPage() {
           <h1 data-page-title="" className="text-[24px] font-semibold leading-[1.3] text-ink">判断档案</h1>
           <p className="mt-1.5 text-[13px] text-ink-3">进行中 {open.length} 条，已结束 {ended.length} 条。</p>
         </header>
+        <ReviewSummary stats={review} title="最近 30 天的复盘" />
         <section className="mb-8">
           <h2 className="text-[15px] font-semibold text-ink">进行中</h2>
           <div className="mt-3 space-y-3">{open.length ? open.map((t) => <Thesis key={t.id} t={t} />) : <p className="text-[13px] text-ink-4">暂无</p>}</div>

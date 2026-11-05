@@ -1,5 +1,5 @@
 {
-  "$comment": "研究模块的标的目录（docs/research-plan.md 第 4 节）。这里列的是“能取到行情的标的”，不是观察清单：观察清单按每天的报道聚合程度自动提名，由你确认（POST /api/research/watch/<id>）。role=candidate 可以被提名，role=context 是市场背景指标，不提名、总在背景里显示。entityId 对应 industry/taxonomy.ts 的 ENTITIES，用来数相关报道。quote.source：binance 或 okx（加密，公开接口不要 key；部署后在服务器上实测选一家，okx 的 symbol 写成 BTC-USDT）、twelvedata（美股和 ETF 日线，要 TWELVEDATA_API_KEY）、fred（指数、利率、汇率、原油现货日价，要 FRED_API_KEY）；null 表示还没接行情（港股）。signals 是筛选信号的阈值，只是“值得看一眼”的提示，不是有效的策略。",
+  "$comment": "研究模块的标的目录（docs/research-plan.md 第 4 节）。这里列的是“能取到行情的标的”，不是观察清单：观察清单按每天的报道聚合程度自动提名，由你确认（POST /api/research/watch/<id>）。role=candidate 可以被提名，role=context 是市场背景指标，不提名、总在背景里显示。entityId 对应 industry/taxonomy.ts 的 ENTITIES，用来数相关报道。quote.source：binance 或 okx（加密，公开接口不要 key；部署后在服务器上实测选一家，okx 的 symbol 写成 BTC-USDT）、twelvedata（美股和 ETF 日线，要 TWELVEDATA_API_KEY）、fred（指数、利率、汇率、原油现货日价，要 FRED_API_KEY）、deribit（BTC/ETH 隐含波动率 DVOL，不要 key）、defillama（稳定币总供应，不要 key）、cftc（COT 传统报告的非商业净持仓，symbol 是合约市场代码，不要 key，周值）、eia（美国原油库存周值，要 EIA_API_KEY）；null 表示还没接行情（港股）。move=points 表示按自身单位看变化（净持仓会穿过 0，不能算百分比）。signals 是筛选信号的阈值，只是“值得看一眼”的提示，不是有效的策略。",
   "nominate": {
     "windowHours": 72,
     "minSources": 3
@@ -369,6 +369,114 @@
       "quote": {
         "source": "fred",
         "symbol": "DEXHKUS"
+      }
+    },
+    {
+      "id": "btc-dvol",
+      "name": "比特币隐含波动率指数（Deribit DVOL）",
+      "market": "crypto",
+      "kind": "index",
+      "entityId": "bitcoin",
+      "role": "context",
+      "unit": "点",
+      "quote": {
+        "source": "deribit",
+        "symbol": "BTC"
+      }
+    },
+    {
+      "id": "eth-dvol",
+      "name": "以太坊隐含波动率指数（Deribit DVOL）",
+      "market": "crypto",
+      "kind": "index",
+      "entityId": "ethereum",
+      "role": "context",
+      "unit": "点",
+      "quote": {
+        "source": "deribit",
+        "symbol": "ETH"
+      }
+    },
+    {
+      "id": "stablecoin-supply",
+      "name": "稳定币总供应（美元计）",
+      "market": "crypto",
+      "kind": "supply",
+      "entityId": null,
+      "role": "context",
+      "unit": "美元",
+      "quote": {
+        "source": "defillama",
+        "symbol": "all"
+      }
+    },
+    {
+      "id": "cot-btc",
+      "name": "CME 比特币期货：非商业净持仓",
+      "market": "crypto",
+      "kind": "positioning",
+      "entityId": "bitcoin",
+      "role": "context",
+      "unit": "张",
+      "move": "points",
+      "quote": {
+        "source": "cftc",
+        "symbol": "133741"
+      }
+    },
+    {
+      "id": "cot-eth",
+      "name": "CME 以太坊期货：非商业净持仓",
+      "market": "crypto",
+      "kind": "positioning",
+      "entityId": "ethereum",
+      "role": "context",
+      "unit": "张",
+      "move": "points",
+      "quote": {
+        "source": "cftc",
+        "symbol": "146021"
+      }
+    },
+    {
+      "id": "cot-gold",
+      "name": "COMEX 黄金期货：非商业净持仓",
+      "market": "commodities",
+      "kind": "positioning",
+      "entityId": "gold",
+      "role": "context",
+      "unit": "张",
+      "move": "points",
+      "quote": {
+        "source": "cftc",
+        "symbol": "088691"
+      }
+    },
+    {
+      "id": "cot-wti",
+      "name": "NYMEX WTI 原油期货：非商业净持仓",
+      "market": "commodities",
+      "kind": "positioning",
+      "entityId": "crude-oil",
+      "role": "context",
+      "unit": "张",
+      "move": "points",
+      "quote": {
+        "source": "cftc",
+        "symbol": "067651"
+      }
+    },
+    {
+      "id": "crude-stocks",
+      "name": "美国商业原油库存（不含战略储备）",
+      "market": "commodities",
+      "kind": "inventory",
+      "entityId": "crude-oil",
+      "role": "context",
+      "unit": "千桶",
+      "quote": {
+        "source": "eia",
+        "symbol": "WCESTUS1"
       }
     }
   ]

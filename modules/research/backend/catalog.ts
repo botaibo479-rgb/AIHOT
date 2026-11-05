@@ -5,16 +5,18 @@ import { z } from "zod";
 import { ENTITIES } from "@aihot/industry/taxonomy";
 import { TOPICS } from "@aihot/backend/publication/topics";
 
-const Quote = z.strictObject({ source: z.enum(["binance", "okx", "twelvedata", "fred"]), symbol: z.string().min(1) });
+const Quote = z.strictObject({ source: z.enum(["binance", "okx", "twelvedata", "fred", "deribit", "defillama", "cftc", "eia"]), symbol: z.string().min(1) });
 
 const Instrument = z.strictObject({
   id: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(1),
   market: z.enum(["crypto", "equities", "commodities", "fx", "macro"]),
-  kind: z.enum(["crypto", "stock", "etf", "index", "rate", "fx", "commodity-spot"]),
+  kind: z.enum(["crypto", "stock", "etf", "index", "rate", "fx", "commodity-spot", "positioning", "inventory", "supply"]),
   entityId: z.string().nullable(),
   role: z.enum(["candidate", "context"]),
   unit: z.string().optional(),
+  /** Read in points rather than percent (a figure that can cross zero); a "%" unit is always read in points. */
+  move: z.literal("points").optional(),
   quote: Quote.nullable(),
 });
 

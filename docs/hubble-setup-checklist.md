@@ -49,14 +49,15 @@ node scripts/init-env.ts --llm-key <你的 DeepSeek API Key>
 | 花多少 | 按 token 计费，用量和每天进来的资料条数成正比。仓库实测：首次导入 152 条资料约用 930 次调用；研究模块每天另加约 8 次候选卡和几十次事件抽取。后台“模型与评测”页能看到每一步的调用次数和 token |
 | 防止超支 | 后台“设置 → 付费请求上限”给模型服务设每分钟、每小时、每天的上限 |
 
-### 4. 行情数据的两个免费 Key
+### 4. 行情数据的三个免费 Key
 
 | 变量 | 去哪里办 | 用在哪 | 费用 |
 |---|---|---|---|
 | `FRED_API_KEY` | 在 St. Louis Fed 的 FRED 网站注册账号，在账号页申请 API Key | 标普 500、纳指、VIX、美债收益率、实际利率、美元指数、美元兑人民币／日元／港元、WTI 与 Brent 现货日价 | 免费 |
 | `TWELVEDATA_API_KEY` | 在 Twelve Data 官网注册免费账号（Basic 档） | 美股和 ETF 日线：IBIT、COIN、MSTR、CRCL、NVDA、TSLA、GLD、USO、SPY、QQQ | 免费档每天 800 次额度，我们每天约用 10 次 |
+| `EIA_API_KEY` | 在 EIA Open Data 免费注册 | 美国商业原油库存周值 | 免费 |
 
-不填也能启动，只是这些标的没有行情，后台“运行”页会写明缺哪个 key。加密行情用交易所公开接口，不需要 key。
+不填也能启动，只是这些标的没有行情，后台“运行”页会写明缺哪个 key。加密行情、Deribit 波动率、DefiLlama 稳定币供应、CFTC 期货持仓都用公开接口，不需要 key。
 
 ### 5. 推送令牌 `INGEST_TOKEN`（你自己生成）
 
@@ -125,13 +126,12 @@ PANews、Odaily、律动、ChainCatcher、华尔街见闻、财联社等大多�
 | 数据库每日备份 | `DB_BACKUP_STORE_*` 一组 | 备份到 S3 兼容的对象存储（腾讯云 COS、阿里云 OSS、AWS S3） | 按存储量计费 |
 | 出网代理 | `EGRESS_PROXY_URL` | 香港服务器一般不需要；只有某个信源连不上时才配 | — |
 
-### 第 5 步各项需要的准备（还没开始做，请你选）
+### 第 5 步各项需要的准备
+
+命中率统计，以及 Deribit、DefiLlama、CFTC、EIA 四个免费数据源已经做完（2026-11-05）。EIA 需要你注册一个免费的 `EIA_API_KEY`，不填的话原油库存这一项没有数据。其余几项还要你决定：
 
 | 项目 | 你需要准备 | 费用 |
 |---|---|---|
-| 每周命中率统计 | 无 | 免费 |
-| 补齐免费数据源：Deribit 波动率、DefiLlama 稳定币、CFTC 期货持仓 | 无 | 免费 |
-| 补齐免费数据源：EIA 原油库存 | `EIA_API_KEY`（在 EIA Open Data 免费注册） | 免费 |
 | 飞书推送每日研究简报 | 一个飞书群自定义机器人的 webhook 地址 | 免费 |
 | 港股行情 | 富途账户，并在服务器上运行富途 OpenD（行情权限看账户等级） | 看账户 |
 | BTC/ETH 现货 ETF 资金流 | 向 SoSoValue 发邮件申请 API；或者你确认可以抓 Farside 网页（要先看它的使用条款） | 是否收费待确认 |
@@ -148,7 +148,7 @@ PANews、Odaily、律动、ChainCatcher、华尔街见闻、财联社等大多�
 5. **官方日程表**：`modules/research/calendar.json` 每年从 Fed、BLS 官方页面更新一次（2027 年其余月份的非农、CPI 等还没录）。你确认后我来录。
 6. **标注样本**：跑一到两周后，从“全部动态”里挑 100–200 条，标“该选／不该选”，用来校准入选门槛。格式见 `docs/selection.md`。
 7. **使用反馈**：一两周后告诉我研究简报的候选卡哪里不合用：太空、证据读错、条件不具体、标的选得不对等。
-8. **第 5 步做哪些**：从上面的表里选。
+8. **第 5 步其余项**：飞书推送简报、港股行情、ETF 资金流、代币解锁，从上面的表里选。
 
 ---
 
@@ -160,6 +160,7 @@ SITE_URL=http://<服务器的 Tailscale 主机名>:3000
 LLM_API_KEY=<DeepSeek API Key>          # init-env 的 --llm-key 会填
 FRED_API_KEY=<FRED Key>
 TWELVEDATA_API_KEY=<Twelve Data Key>
+EIA_API_KEY=<EIA Key>                   # 美国原油库存周值，免费注册
 INGEST_TOKEN=<openssl rand -hex 24 的结果>
 COLLECT_ENABLED=true
 MODEL_CALLS_ENABLED=true

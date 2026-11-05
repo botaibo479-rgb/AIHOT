@@ -13,7 +13,8 @@ import { sql } from "@aihot/backend/db";
 import { CATALOG } from "./backend/catalog.ts";
 import { collectDaily, collectSnapshots, pruneSnapshots } from "./backend/collect.ts";
 import { OwnerEvent, addOwnerEvent, listEvents, scanReports, withdrawEvent } from "./backend/events.ts";
-import { briefAnswer, detailAnswer, eventsAnswer, listAnswer, thesesAnswer, thesisAnswer } from "./backend/markdown.ts";
+import { briefAnswer, detailAnswer, eventsAnswer, listAnswer, reviewAnswer, thesesAnswer, thesisAnswer } from "./backend/markdown.ts";
+import { reviewStats } from "./backend/review.ts";
 import { instrumentDetail, listInstruments } from "./backend/read.ts";
 import { WatchError, decide, nominate } from "./backend/watch.ts";
 
@@ -109,6 +110,11 @@ function briefRoutes(app: FastifyInstance) {
     const theses = await listTheses(status === "all" ? {} : { open: status === "open" });
     return reply.header("Cache-Control", CACHE).send({ theses });
   });
+  app.get<{ Querystring: { days?: string } }>("/api/research/review", async (req, reply) => {
+    const days = req.query.days ?? "30";
+    if (!["7", "30", "90", "all"].includes(days)) return reply.code(400).send({ error: "days is 7, 30, 90 or all" });
+    return reply.header("Cache-Control", CACHE).send(await reviewStats(days === "all" ? null : Number(days)));
+  });
   app.get<{ Params: { id: string } }>("/api/research/theses/:id", async (req, reply) => {
     const id = Number(req.params.id);
     const thesis = Number.isSafeInteger(id) ? await getThesis(id) : null;
@@ -152,6 +158,10 @@ const BRIEF_INPUT = z.strictObject({
 });
 const THESIS_INPUT = z.strictObject({
   id: z.number().int().positive().optional().describe("Optional judgment id. Omit for the open judgments."),
+});
+
+const REVIEW_INPUT = z.strictObject({
+  days: z.enum(["7", "30", "90", "all"]).default("30").describe("Which judgments: those that ended in the last 7, 30 or 90 days, or all. Defaults to 30."),
 });
 
 const EVENTS_INPUT = z.strictObject({
@@ -280,6 +290,24 @@ export default defineServerModule({
           const thesis = await getThesis(id);
           if (!thesis) return { text: `没有编号为 ${id} 的判断。`, structured: { schemaVersion: 1, thesis: null } };
           return { text: thesisAnswer(thesis), structured: { schemaVersion: 1, thesis } };
+        },
+      },
+    }, {
+      path: "/review",
+      title: "判断复盘",
+      ask: "过去一段时间结束的判断有多少触发、失效、到期，命中率和相对基准的表现",
+      answer: async () => reviewAnswer(await reviewStats(30)),
+      etagPrefix: "research-review",
+      cacheControl: "public, max-age=300",
+      mcp: {
+        tool: "get_review",
+        use: "for how past judgments turned out: hit rates, price change and excess over the benchmark, by market and by evidence",
+        description: "Hit rates of the judgments that ended in a window (7, 30, 90 days or all): triggered, invalidated, expired and withdrawn counts, mean price change and mean excess over BTC or SPY, grouped by market, by the evidence the first card stood on and by who opened it. A self-review, not a strategy backtest.",
+        input: REVIEW_INPUT,
+        run: async (args) => {
+          const { days } = REVIEW_INPUT.parse(args);
+          const stats = await reviewStats(days === "all" ? null : Number(days));
+          return { text: reviewAnswer(stats), structured: { schemaVersion: 1, ...stats } };
         },
       },
     }],

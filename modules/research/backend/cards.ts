@@ -7,7 +7,7 @@ import { beijingDate } from "@aihot/contracts/time";
 import { sql } from "@aihot/backend/db";
 import { listedCondition } from "@aihot/backend/publication/scope";
 import { grounded } from "@aihot/backend/reports/compose";
-import type { Card, Condition, Evidence, EventView, InstrumentView } from "../contract.ts";
+import { formatMove, formatNumber, type Card, type Condition, type Evidence, type EventView, type InstrumentView } from "../contract.ts";
 
 interface ReportRow { id: string; title: string; summary: string | null; tier: string; score: string | null; at: Date }
 
@@ -32,13 +32,21 @@ export interface CardInput {
   corpus: string;
 }
 
-export function cardInput(view: InstrumentView, reports: ReportRow[], events: EventView[], now: Date): CardInput {
+/**
+ * The background series that bear on an instrument: of its own entity (BTC's DVOL and CME positioning, oil's
+ * inventories), or of its market with no entity (stablecoin supply for crypto, the indices for stocks).
+ */
+export function relatedOf(view: InstrumentView, all: InstrumentView[]): InstrumentView[] {
+  return all.filter((r) => r.id !== view.id && r.role === "context" && r.quote && (r.entityId ? r.entityId === view.entityId : r.market === view.market));
+}
+
+export function cardInput(view: InstrumentView, reports: ReportRow[], events: EventView[], now: Date, related: InstrumentView[] = []): CardInput {
   const q = view.quote;
   const metrics: Record<string, string | number | null> = {};
   if (q) {
     Object.assign(metrics, {
       "quote.price": round(q.price), "quote.source": q.label, "quote.at": q.at.slice(0, 16), "quote.unit": q.unit,
-      "quote.change1d": q.unit === "%" ? round(q.changePoints1d, 2) : pct(q.change1d), "quote.change7d": q.unit === "%" ? round(q.changePoints7d, 2) : pct(q.change7d),
+      "quote.change1d": q.points ? round(q.changePoints1d, 2) : pct(q.change1d), "quote.change7d": q.points ? round(q.changePoints7d, 2) : pct(q.change7d),
       "quote.volatility30d": pct(q.volatility30d), "quote.volumeRatio": round(q.volumeRatio, 2), "quote.stale": q.stale ? "是" : "否",
     });
     if (q.perp) Object.assign(metrics, {
@@ -49,6 +57,10 @@ export function cardInput(view: InstrumentView, reports: ReportRow[], events: Ev
   if (view.attention) Object.assign(metrics, {
     "attention.sources48h": view.attention.sources48h, "attention.sourcesPrev48h": view.attention.sourcesPrev48h, "attention.reports48h": view.attention.reports48h,
   });
+  for (const r of related) {
+    const rq = r.quote!;
+    metrics[`rel.${r.id}`] = `${r.name}：${formatNumber(rq.price)}${rq.unit === "%" ? "%" : rq.unit ? ` ${rq.unit}` : ""}，${rq.daily ? "1 期" : "24 小时"} ${formatMove(rq, "1d")}，7 日 ${formatMove(rq, "7d")}（${rq.label}，${rq.at.slice(0, 10)}${rq.stale ? "，已过期" : ""}）`;
+  }
   for (const k of Object.keys(metrics)) if (metrics[k] === null) delete metrics[k];
   const input = {
     instrument: { id: view.id, name: view.name, market: view.market, kind: view.kind, watch: view.watch?.state ?? null },

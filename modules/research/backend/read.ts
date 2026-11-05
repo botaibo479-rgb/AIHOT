@@ -8,6 +8,8 @@ import { CATALOG, byId, topicOf, type Instrument } from "./catalog.ts";
 import { upcomingByEntity } from "./events.ts";
 
 const HOUR = 3_600_000;
+/** Sources that publish once a week (CFTC on Fridays for the Tuesday before, EIA on Wednesdays). */
+const WEEKLY = new Set(["cftc", "eia"]);
 const DAY = 24 * HOUR;
 const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
@@ -37,6 +39,10 @@ function quoteLabels(i: Instrument): { price: string; perp: string; unit: string
   if (q.source === "binance") return { price: `Binance 现货 ${q.symbol}`, perp: `Binance USDT 永续 ${q.symbol}`, unit: "USDT" };
   if (q.source === "okx") return { price: `OKX 现货 ${q.symbol}`, perp: `OKX 永续 ${q.symbol}-SWAP`, unit: "USDT" };
   if (q.source === "twelvedata") return { price: `Twelve Data 日线收盘 ${q.symbol}`, perp: "", unit: "美元" };
+  if (q.source === "deribit") return { price: `Deribit ${q.symbol} DVOL（日收盘）`, perp: "", unit: i.unit ?? null };
+  if (q.source === "defillama") return { price: "DefiLlama 稳定币总供应（日值）", perp: "", unit: i.unit ?? null };
+  if (q.source === "cftc") return { price: `CFTC COT 传统报告 ${q.symbol}：非商业净持仓（周值）`, perp: "", unit: i.unit ?? null };
+  if (q.source === "eia") return { price: `EIA ${q.symbol}（周值）`, perp: "", unit: i.unit ?? null };
   return { price: `FRED ${q.symbol}（日值）`, perp: "", unit: i.unit ?? null };
 }
 
@@ -62,7 +68,7 @@ const average = (values: number[]) => (values.length ? values.reduce((a, b) => a
 function quoteView(i: Instrument, snap: SnapshotRow | undefined, series: DailyRow[], now: Date): QuoteView | null {
   const labels = quoteLabels(i);
   const last = series.at(-1);
-  const rate = labels.unit === "%";
+  const rate = labels.unit === "%" || i.move === "points";
   const priorVolumes = (rows: DailyRow[]) => average(rows.slice(-20).flatMap((d) => (d.volume === null ? [] : [Number(d.volume)])));
   let price: number, at: Date, change1d: number | null, points1d: number | null = null, ref: string, volumeRatio: number | null;
   if (snap) {
@@ -97,13 +103,13 @@ function quoteView(i: Instrument, snap: SnapshotRow | undefined, series: DailyRo
     };
   })() : null;
   return {
-    label: labels.price, price, at: at.toISOString(), daily: !snap, unit: labels.unit,
+    label: labels.price, price, at: at.toISOString(), daily: !snap, unit: labels.unit, points: rate,
     change1d: rate ? null : change1d,
     change7d: week && !rate ? price / Number(week.close) - 1 : null,
     changePoints1d: points1d,
     changePoints7d: week && rate ? price - Number(week.close) : null,
     volatility30d: volatility(series), volumeRatio, perp,
-    stale: now.getTime() - at.getTime() > (snap ? HOUR : 5 * DAY),
+    stale: now.getTime() - at.getTime() > (snap ? HOUR : WEEKLY.has(i.quote!.source) ? 12 * DAY : 5 * DAY),
   };
 }
 

@@ -1,7 +1,7 @@
 // The Agent answers (MCP hubble_get_instrument, /api/v1/agent/instruments): the same numbers as the JSON, as
 // Markdown, ending with how to tell them to the person asking.
 import { SITE } from "@aihot/site";
-import { CONFIRMATION_LABELS, MARKET_LABELS, WATCH_LABELS, formatEventDate, formatMove, formatNumber, formatPercent, STATUS_LABELS, type Brief, type BriefEntry, type Card, type EventList, type EventView, type InstrumentDetail, type InstrumentList, type InstrumentView, type Review, type ThesisView } from "../contract.ts";
+import { CONFIRMATION_LABELS, MARKET_LABELS, WATCH_LABELS, formatEventDate, formatMove, formatNumber, formatPercent, STATUS_LABELS, type Brief, type BriefEntry, type Card, type EventList, type EventView, type InstrumentDetail, type InstrumentList, type InstrumentView, type Review, type ReviewGroup, type ReviewStats, type ThesisView } from "../contract.ts";
 
 function quoteLine(v: InstrumentView): string {
   const q = v.quote;
@@ -134,6 +134,7 @@ export function briefAnswer(b: Brief): string {
     "",
     "## 市场背景",
     ...b.context.filter((v) => v.quote).map((v) => `- ${v.name}：${quoteLine(v)}`),
+    ...(b.weekly ? ["", "## 上周复盘", ...reviewLines(b.weekly)] : []),
     ...(b.problems.length ? ["", "## 生成时的问题", ...b.problems.map((p) => `- ${p}`)] : []),
     "",
     "## 回答提示",
@@ -176,5 +177,33 @@ export function thesesAnswer(list: ThesisView[]): string {
     "",
     "## 回答提示",
     "- 要看某个判断的全部修订，用同一个工具带上 id。",
+  ].join("\n");
+}
+
+function groupLine(g: ReviewGroup): string {
+  const rate = g.hitRate === null ? "—" : formatPercent(g.hitRate, 0).replace("+", "");
+  return `- ${g.label}：结束 ${g.ended} 条（触发 ${g.triggered}、失效 ${g.invalidated}、到期 ${g.expired}、撤销 ${g.withdrawn}），命中率 ${rate}，平均涨跌 ${formatPercent(g.meanChange)}，平均超额 ${formatPercent(g.meanExcess)}`;
+}
+
+function reviewLines(r: ReviewStats): string[] {
+  if (!r.overall.ended) return ["这段时间没有结束的判断。"];
+  return [groupLine(r.overall), ...r.byMarket.map(groupLine), ...r.byEvidence.map(groupLine)];
+}
+
+export function reviewAnswer(r: ReviewStats): string {
+  return [
+    `# ${SITE.name} 判断复盘：${r.window === "all" ? "全部" : `最近 ${r.window} 天`}结束的判断`,
+    "",
+    r.note,
+    "",
+    "## 总体",
+    ...(r.overall.ended ? [groupLine(r.overall)] : ["这段时间没有结束的判断。"]),
+    ...(r.byMarket.length ? ["", "## 按市场", ...r.byMarket.map(groupLine)] : []),
+    ...(r.byEvidence.length ? ["", "## 按开立时的证据", ...r.byEvidence.map(groupLine)] : []),
+    ...(r.byOrigin.length ? ["", "## 按开立方", ...r.byOrigin.map(groupLine)] : []),
+    ...(r.recent.length ? ["", "## 最近结束的", ...r.recent.map((x) => `- #${x.thesisId} ${x.instrumentName}：${STATUS_LABELS[x.status]}（${x.endedAt.slice(0, 10)}），涨跌 ${formatPercent(x.change)}，超额 ${formatPercent(x.excess)}${x.hit ? `；${x.hit}` : ""}`)] : []),
+    "",
+    "## 回答提示",
+    "- 样本少时如实说明只作参考；不要把命中率说成策略收益或胜率保证。",
   ].join("\n");
 }

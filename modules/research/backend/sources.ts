@@ -1,5 +1,5 @@
 // The market data the module reads, one function per question to each source. Free public endpoints, or free
-// tiers with a key (TWELVEDATA_API_KEY, FRED_API_KEY): nothing here is paid, so no receipt; the schedules keep
+// tiers with a key (TWELVEDATA_API_KEY, FRED_API_KEY, EIA_API_KEY): nothing here is paid, so no receipt; the schedules keep
 // far inside the free tiers (a few dozen calls a day for the daily series).
 // None of these were reached from the machine this was written on: check them from the server first
 // (docs/research-plan.md, step 2).
@@ -13,6 +13,10 @@ export const ENDPOINTS = {
   okx: "https://www.okx.com",
   fred: "https://api.stlouisfed.org",
   twelvedata: "https://api.twelvedata.com",
+  deribit: "https://www.deribit.com",
+  defillama: "https://stablecoins.llama.fi",
+  cftc: "https://publicreporting.cftc.gov",
+  eia: "https://api.eia.gov",
 };
 
 export interface Snapshot {
@@ -135,8 +139,10 @@ async function okxDays(instId: string): Promise<Day[]> {
 // ── Daily series with a key ──────────────────────────────────────────────────────────────────────────
 
 /** The key a source needs, or null when it has none: its instruments are skipped and say why. */
-export function sourceKey(source: "twelvedata" | "fred"): string | null {
-  return credential("collectors", source === "fred" ? "FRED_API_KEY" : "TWELVEDATA_API_KEY");
+export const KEY_NAMES = { fred: "FRED_API_KEY", twelvedata: "TWELVEDATA_API_KEY", eia: "EIA_API_KEY" } as const;
+
+export function sourceKey(source: keyof typeof KEY_NAMES): string | null {
+  return credential("collectors", KEY_NAMES[source]);
 }
 
 async function fredDays(series: string, key: string): Promise<Day[]> {
@@ -155,9 +161,62 @@ async function twelvedataDays(symbol: string, key: string): Promise<Day[]> {
   return body.values.map((v) => ({ day: String(v.datetime).slice(0, 10), close: must(v.close, `Twelve Data ${symbol} close`), volume: num(v.volume), openInterest: null })).reverse();
 }
 
+// ── Free series without a key ────────────────────────────────────────────────────────────────────────
+
+/** Deribit's volatility index (DVOL) for BTC or ETH: one close per UTC day, the day still trading left out. */
+async function deribitDays(currency: string, _key: null, now: Date): Promise<Day[]> {
+  const end = now.getTime();
+  const body = await getJson(`${ENDPOINTS.deribit}/api/v2/public/get_volatility_index_data?currency=${encodeURIComponent(currency)}&start_timestamp=${end - 45 * 86_400_000}&end_timestamp=${end}&resolution=1D`, `Deribit DVOL ${currency}`) as { result?: { data?: unknown[][] } };
+  const rows = body.result?.data;
+  if (!Array.isArray(rows)) throw new Error(`Deribit DVOL ${currency}: no data`);
+  return rows
+    .filter((r) => must(r[0], "DVOL ts") + 86_400_000 <= end)
+    .map((r) => ({ day: utcDay(must(r[0], "DVOL ts")), close: must(r[4], "DVOL close"), volume: null, openInterest: null }))
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .slice(-40);
+}
+
+/** Every stablecoin's circulating supply in USD, summed by DefiLlama, one value a day. */
+async function defillamaDays(_symbol: string, _key: null, _now: Date): Promise<Day[]> {
+  const rows = await getJson(`${ENDPOINTS.defillama}/stablecoincharts/all`, "DefiLlama stablecoins") as Array<{ date: string | number; totalCirculatingUSD?: { peggedUSD?: number } }>;
+  if (!Array.isArray(rows)) throw new Error("DefiLlama stablecoins: not a list");
+  return rows.slice(-40).flatMap((r) => {
+    const usd = num(r.totalCirculatingUSD?.peggedUSD);
+    return usd === null ? [] : [{ day: utcDay(must(r.date, "DefiLlama date") * 1000), close: usd, volume: null, openInterest: null }];
+  });
+}
+
+/**
+ * The CFTC's legacy Commitments of Traders (futures only) for one contract market code: the non-commercial
+ * net position (long − short) and the open interest, dated by the Tuesday it describes.
+ */
+async function cftcDays(code: string, _key: null, _now: Date): Promise<Day[]> {
+  const where = encodeURIComponent(`cftc_contract_market_code='${code.replace(/[^0-9A-Z]/gi, "")}'`);
+  const rows = await getJson(`${ENDPOINTS.cftc}/resource/6dca-aqww.json?$where=${where}&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=20`, `CFTC COT ${code}`) as Array<Record<string, string>>;
+  if (!Array.isArray(rows)) throw new Error(`CFTC COT ${code}: not a list`);
+  return rows.map((r) => ({
+    day: String(r.report_date_as_yyyy_mm_dd).slice(0, 10),
+    close: must(r.noncomm_positions_long_all, "COT long") - must(r.noncomm_positions_short_all, "COT short"),
+    volume: null,
+    openInterest: num(r.open_interest_all),
+  })).reverse();
+}
+
+/** An EIA weekly petroleum series (API v2), such as WCESTUS1: US commercial crude stocks in thousand barrels. */
+async function eiaDays(series: string, key: string): Promise<Day[]> {
+  const body = await getJson(`${ENDPOINTS.eia}/v2/petroleum/stoc/wstk/data/?api_key=${encodeURIComponent(key)}&frequency=weekly&data[0]=value&facets[series][]=${encodeURIComponent(series)}&sort[0][column]=period&sort[0][direction]=desc&length=30`, `EIA ${series}`) as { response?: { data?: Array<{ period: string; value: number | string }> } };
+  const rows = body.response?.data;
+  if (!Array.isArray(rows)) throw new Error(`EIA ${series}: no data`);
+  return rows.flatMap((r) => {
+    const value = num(r.value);
+    return value === null || !/^\d{4}-\d{2}-\d{2}$/.test(r.period) ? [] : [{ day: r.period, close: value, volume: null, openInterest: null }];
+  }).reverse();
+}
+
 export const crypto = {
   binance: { snapshot: binanceSnapshot, days: binanceDays },
   okx: { snapshot: okxSnapshot, days: (instId: string, _now: Date) => okxDays(instId) },
 };
 
-export const daily = { fred: fredDays, twelvedata: twelvedataDays };
+/** Daily (or weekly) series by source: those in KEY_NAMES get their key, the rest null. */
+export const daily = { fred: fredDays, twelvedata: twelvedataDays, eia: eiaDays, deribit: deribitDays, defillama: defillamaDays, cftc: cftcDays };
