@@ -1,0 +1,375 @@
+{
+  "$comment": "研究模块的标的目录（docs/research-plan.md 第 4 节）。这里列的是“能取到行情的标的”，不是观察清单：观察清单按每天的报道聚合程度自动提名，由你确认（POST /api/research/watch/<id>）。role=candidate 可以被提名，role=context 是市场背景指标，不提名、总在背景里显示。entityId 对应 industry/taxonomy.ts 的 ENTITIES，用来数相关报道。quote.source：binance 或 okx（加密，公开接口不要 key；部署后在服务器上实测选一家，okx 的 symbol 写成 BTC-USDT）、twelvedata（美股和 ETF 日线，要 TWELVEDATA_API_KEY）、fred（指数、利率、汇率、原油现货日价，要 FRED_API_KEY）；null 表示还没接行情（港股）。signals 是筛选信号的阈值，只是“值得看一眼”的提示，不是有效的策略。",
+  "nominate": {
+    "windowHours": 72,
+    "minSources": 3
+  },
+  "signals": {
+    "oiChange7d": 0.15,
+    "volumeRatio": 2,
+    "fundingRate": 0.0005,
+    "attentionSources": 3,
+    "quietSources": 1,
+    "flatMove24h": 0.02
+  },
+  "instruments": [
+    {
+      "id": "btc",
+      "name": "比特币 BTC",
+      "market": "crypto",
+      "kind": "crypto",
+      "entityId": "bitcoin",
+      "role": "candidate",
+      "quote": {
+        "source": "binance",
+        "symbol": "BTCUSDT"
+      }
+    },
+    {
+      "id": "eth",
+      "name": "以太坊 ETH",
+      "market": "crypto",
+      "kind": "crypto",
+      "entityId": "ethereum",
+      "role": "candidate",
+      "quote": {
+        "source": "binance",
+        "symbol": "ETHUSDT"
+      }
+    },
+    {
+      "id": "sol",
+      "name": "Solana SOL",
+      "market": "crypto",
+      "kind": "crypto",
+      "entityId": "solana",
+      "role": "candidate",
+      "quote": {
+        "source": "binance",
+        "symbol": "SOLUSDT"
+      }
+    },
+    {
+      "id": "bnb",
+      "name": "BNB",
+      "market": "crypto",
+      "kind": "crypto",
+      "entityId": "bnb",
+      "role": "candidate",
+      "quote": {
+        "source": "binance",
+        "symbol": "BNBUSDT"
+      }
+    },
+    {
+      "id": "xrp",
+      "name": "XRP",
+      "market": "crypto",
+      "kind": "crypto",
+      "entityId": "xrp",
+      "role": "candidate",
+      "quote": {
+        "source": "binance",
+        "symbol": "XRPUSDT"
+      }
+    },
+    {
+      "id": "ibit",
+      "name": "iShares 比特币现货 ETF（IBIT）",
+      "market": "equities",
+      "kind": "etf",
+      "entityId": "blackrock",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "IBIT"
+      }
+    },
+    {
+      "id": "coin",
+      "name": "Coinbase（COIN）",
+      "market": "equities",
+      "kind": "stock",
+      "entityId": "coinbase",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "COIN"
+      }
+    },
+    {
+      "id": "mstr",
+      "name": "Strategy（MSTR）",
+      "market": "equities",
+      "kind": "stock",
+      "entityId": "strategy",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "MSTR"
+      }
+    },
+    {
+      "id": "crcl",
+      "name": "Circle（CRCL）",
+      "market": "equities",
+      "kind": "stock",
+      "entityId": "circle",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "CRCL"
+      }
+    },
+    {
+      "id": "nvda",
+      "name": "英伟达（NVDA）",
+      "market": "equities",
+      "kind": "stock",
+      "entityId": "nvidia",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "NVDA"
+      }
+    },
+    {
+      "id": "tsla",
+      "name": "特斯拉（TSLA）",
+      "market": "equities",
+      "kind": "stock",
+      "entityId": "tesla",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "TSLA"
+      }
+    },
+    {
+      "id": "gld",
+      "name": "SPDR 黄金 ETF（GLD）",
+      "market": "equities",
+      "kind": "etf",
+      "entityId": "gold",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "GLD"
+      }
+    },
+    {
+      "id": "uso",
+      "name": "美国原油基金（USO）",
+      "market": "equities",
+      "kind": "etf",
+      "entityId": "crude-oil",
+      "role": "candidate",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "USO"
+      }
+    },
+    {
+      "id": "spy",
+      "name": "标普 500 ETF（SPY）",
+      "market": "equities",
+      "kind": "etf",
+      "entityId": null,
+      "role": "context",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "SPY"
+      }
+    },
+    {
+      "id": "qqq",
+      "name": "纳指 100 ETF（QQQ）",
+      "market": "equities",
+      "kind": "etf",
+      "entityId": null,
+      "role": "context",
+      "quote": {
+        "source": "twelvedata",
+        "symbol": "QQQ"
+      }
+    },
+    {
+      "id": "tencent",
+      "name": "腾讯控股（0700.HK）",
+      "market": "equities",
+      "kind": "stock",
+      "entityId": "tencent",
+      "role": "candidate",
+      "quote": null
+    },
+    {
+      "id": "sp500",
+      "name": "标普 500 指数",
+      "market": "equities",
+      "kind": "index",
+      "entityId": null,
+      "role": "context",
+      "unit": "点",
+      "quote": {
+        "source": "fred",
+        "symbol": "SP500"
+      }
+    },
+    {
+      "id": "nasdaq",
+      "name": "纳斯达克综合指数",
+      "market": "equities",
+      "kind": "index",
+      "entityId": null,
+      "role": "context",
+      "unit": "点",
+      "quote": {
+        "source": "fred",
+        "symbol": "NASDAQCOM"
+      }
+    },
+    {
+      "id": "vix",
+      "name": "VIX 波动率指数",
+      "market": "equities",
+      "kind": "index",
+      "entityId": null,
+      "role": "context",
+      "unit": "点",
+      "quote": {
+        "source": "fred",
+        "symbol": "VIXCLS"
+      }
+    },
+    {
+      "id": "wti",
+      "name": "WTI 原油现货（美元/桶）",
+      "market": "commodities",
+      "kind": "commodity-spot",
+      "entityId": "crude-oil",
+      "role": "context",
+      "unit": "美元",
+      "quote": {
+        "source": "fred",
+        "symbol": "DCOILWTICO"
+      }
+    },
+    {
+      "id": "brent",
+      "name": "Brent 原油现货（美元/桶）",
+      "market": "commodities",
+      "kind": "commodity-spot",
+      "entityId": "crude-oil",
+      "role": "context",
+      "unit": "美元",
+      "quote": {
+        "source": "fred",
+        "symbol": "DCOILBRENTEU"
+      }
+    },
+    {
+      "id": "dgs2",
+      "name": "美国 2 年期国债收益率",
+      "market": "macro",
+      "kind": "rate",
+      "entityId": null,
+      "role": "context",
+      "unit": "%",
+      "quote": {
+        "source": "fred",
+        "symbol": "DGS2"
+      }
+    },
+    {
+      "id": "dgs10",
+      "name": "美国 10 年期国债收益率",
+      "market": "macro",
+      "kind": "rate",
+      "entityId": null,
+      "role": "context",
+      "unit": "%",
+      "quote": {
+        "source": "fred",
+        "symbol": "DGS10"
+      }
+    },
+    {
+      "id": "dfii10",
+      "name": "美国 10 年期实际利率（TIPS）",
+      "market": "macro",
+      "kind": "rate",
+      "entityId": null,
+      "role": "context",
+      "unit": "%",
+      "quote": {
+        "source": "fred",
+        "symbol": "DFII10"
+      }
+    },
+    {
+      "id": "fed-upper",
+      "name": "联邦基金目标利率上限",
+      "market": "macro",
+      "kind": "rate",
+      "entityId": "fed",
+      "role": "context",
+      "unit": "%",
+      "quote": {
+        "source": "fred",
+        "symbol": "DFEDTARU"
+      }
+    },
+    {
+      "id": "usd-broad",
+      "name": "美元指数（广义贸易加权）",
+      "market": "fx",
+      "kind": "fx",
+      "entityId": "us-dollar",
+      "role": "context",
+      "unit": "点",
+      "quote": {
+        "source": "fred",
+        "symbol": "DTWEXBGS"
+      }
+    },
+    {
+      "id": "usdcny",
+      "name": "美元兑人民币",
+      "market": "fx",
+      "kind": "fx",
+      "entityId": "pboc",
+      "role": "context",
+      "unit": "元",
+      "quote": {
+        "source": "fred",
+        "symbol": "DEXCHUS"
+      }
+    },
+    {
+      "id": "usdjpy",
+      "name": "美元兑日元",
+      "market": "fx",
+      "kind": "fx",
+      "entityId": "boj",
+      "role": "context",
+      "unit": "日元",
+      "quote": {
+        "source": "fred",
+        "symbol": "DEXJPUS"
+      }
+    },
+    {
+      "id": "usdhkd",
+      "name": "美元兑港元",
+      "market": "fx",
+      "kind": "fx",
+      "entityId": "hkma",
+      "role": "context",
+      "unit": "港元",
+      "quote": {
+        "source": "fred",
+        "symbol": "DEXHKUS"
+      }
+    }
+  ]
+}
