@@ -166,3 +166,107 @@ export function formatMove(q: QuoteView, which: "1d" | "7d"): string {
   }
   return formatPercent(which === "1d" ? q.change1d : q.change7d);
 }
+
+// ── Candidate cards, judgments and the daily brief (backend/cards.ts, theses.ts, brief.ts) ────────────
+
+export interface Evidence {
+  claim: string;
+  /** What supports it: a metric of the instrument (quote.change7d), a report (a:<id>) or an event (e:<id>). */
+  ref: string;
+}
+
+export interface Condition {
+  text: string;
+  /** A price level the daily check reads; without one the condition is checked by hand. */
+  check?: { metric: "price"; op: ">=" | "<="; value: number };
+}
+
+export interface Card {
+  level: "candidate" | "lead";
+  whyNow: string;
+  catalysts: string[];
+  evidence: { capital: Evidence[]; narrative: Evidence[]; rules: Evidence[] };
+  gaps: string[];
+  triggers: Condition[];
+  invalidations: Condition[];
+  risks: string[];
+  horizonDays: number;
+}
+
+export type ThesisStatus = "watching" | "near" | "triggered" | "invalidated" | "expired" | "withdrawn";
+export const OPEN_STATUSES: readonly ThesisStatus[] = ["watching", "near"];
+export const STATUS_LABELS: Record<ThesisStatus, string> = { watching: "观察中", near: "接近触发", triggered: "已触发", invalidated: "已失效", expired: "到期", withdrawn: "撤销" };
+
+export interface Review {
+  /** The price when it was opened and when it ended, and the change between them. */
+  openPrice: number | null;
+  closePrice: number | null;
+  change: number | null;
+  /** The benchmark's change over the same days (BTC for crypto, SPY for the rest), when both were known. */
+  benchmark: string | null;
+  benchmarkChange: number | null;
+  /** The condition that ended it, as written. */
+  hit: string | null;
+}
+
+export interface Revision {
+  rev: number;
+  at: string;
+  kind: "open" | "update" | "status" | "review" | "note";
+  status: ThesisStatus;
+  /** A card (open, update), a review, or nothing. */
+  content: Card | Review | null;
+  reason: string | null;
+  author: "model" | "rule" | "owner";
+  price: number | null;
+  priceAt: string | null;
+}
+
+export interface ThesisView {
+  id: number;
+  instrument: string;
+  instrumentName: string;
+  origin: "brief" | "owner";
+  openedAt: string;
+  status: ThesisStatus;
+  /** The card as it stands: the latest open or update revision. */
+  card: Card;
+  /** Every revision, oldest first, as written. */
+  revisions: Revision[];
+  /** The last day to watch it. */
+  until: string;
+}
+
+export interface BriefEntry {
+  instrument: InstrumentView;
+  card: Card;
+  /** The judgment it opened (candidates only). */
+  thesisId: number | null;
+}
+
+export interface BriefUpdate {
+  thesisId: number;
+  instrument: string;
+  instrumentName: string;
+  from: ThesisStatus;
+  to: ThesisStatus;
+  reason: string;
+}
+
+export interface Brief {
+  day: string;
+  generatedAt: string;
+  note: string;
+  candidates: BriefEntry[];
+  leads: BriefEntry[];
+  updates: BriefUpdate[];
+  /** Judgments still open after today's check, other than today's new ones. */
+  open: Array<{ thesisId: number; instrument: string; instrumentName: string; status: ThesisStatus; until: string }>;
+  events: EventList;
+  watchlist: InstrumentView[];
+  context: InstrumentView[];
+  /** What failed while writing it (a model call, a card that broke the rules), so a thin brief says why. */
+  problems: string[];
+}
+
+export const BRIEF_NOTE = "候选卡只依据站内数据与公开报道：证据都带出处，缺的写在“缺口”里；没有合格候选就少给。这不是买卖建议，也不是价格预测。";

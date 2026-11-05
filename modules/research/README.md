@@ -1,13 +1,14 @@
-# 研究模块：标的、行情、观察清单与事件日历
+# 研究模块：行情、观察清单、事件日历、研究简报与判断档案
 
-Hubble 的第 2、3 步（[执行方案](../../docs/research-plan.md)）。这个模块管四件事：
+Hubble 的第 2–4 步（[执行方案](../../docs/research-plan.md)）。这个模块管五件事：
 
 - 给目录里的标的取行情；
 - 按报道的聚合程度提名观察清单，再由你确认；
 - 事件日历：官方日程表，加上从公开报道里读出的未来事件；
+- 每天一份研究简报：候选卡，以及只追加、不覆盖的判断档案；
 - 通过网页、JSON、MCP 把这些数据交出去。
 
-只有事件日历调模型（模型步骤“研究：从报道里抽未来事件”），引擎不改。
+调模型的只有两步：“研究：从报道里抽未来事件”和“研究：候选卡”。引擎不改。
 
 ## 标的目录：`instruments.json`
 
@@ -98,10 +99,45 @@ Hubble 的第 2、3 步（[执行方案](../../docs/research-plan.md)）。这�
 
 不给概率，不写“市场共识”。
 
+## 研究简报与判断档案
+
+研究简报每天 08:45（北京时间）生成一次，写好后不改。顺序是：
+
+1. **核对进行中的判断**：只看带价位的条件。
+   - 价格越过失效价 → 已失效；越过触发价 → 已触发；离触发价不到 3% → 接近触发；过了观察期 → 到期。
+   - 每次变化追加一条修订；判断结束时自动追加复盘：期间涨跌，以及同期 BTC（加密）或 SPY（其他）的涨跌。
+2. **挑标的写候选卡**：最多 8 个，按以下顺序优先：观察中、已提名、有筛选标记、7 天内有正式事件。已有进行中判断的标的不再写。
+   - 提示词是 `industry/prompts/research-card.md`，可以用 `RESEARCH_MODEL` 单独换模型。
+   - 模型看到的每个事实都有编号：行情指标如 `perp.openInterestChange7d`，报道 `a:<id>`，事件 `e:<id>`。
+3. **检查候选卡**，以下内容会被去掉：
+   - 引用了输入里没有的编号的证据；
+   - 写了输入里没有的名字或数字的句子（用引擎的 `grounded()` 核对）；
+   - 带“概率、共识、已定价、目标价、必涨、主力成本”等词的句子；
+   - 离现价 10 倍以外的价位。
+4. **决定等级**：既没有资本权也没有规则权证据，或缺少触发、失效条件的，只能算线索，不开立判断。
+5. **开立判断**：合格候选开立一条判断，记下开立时的价格。
+
+模型调用关闭、预算用完或服务出错时，简报照常生成，只是没有候选卡，并在“生成时的问题”里写明原因。
+
+判断档案只追加：开立、状态变化、复盘、笔记，每次一条修订，写明时间、原因、是谁（模型、规则核对、站长），之前的修订原样保留。你自己的判断和决定用推送令牌写：
+
+```bash
+# 开立一条自己的判断
+curl -X POST http://<主机>:3000/api/research/theses -H "Authorization: Bearer $INGEST_TOKEN" -H "Content-Type: application/json" \
+  -d '{"instrument":"gld","whyNow":"…","triggers":[{"text":"站上 250","price":250,"op":">="}],"invalidations":[{"text":"跌破 230","price":230,"op":"<="}],"horizonDays":21}'
+# 追加笔记，或改状态（watching / triggered / invalidated / withdrawn）
+curl -X POST http://<主机>:3000/api/research/theses/<id>/revisions -H "Authorization: Bearer $INGEST_TOKEN" -H "Content-Type: application/json" \
+  -d '{"kind":"status","status":"withdrawn","reason":"逻辑不成立"}'
+```
+
+已结束的判断只能追加笔记，不能重新打开。
+
 ## 读取
 
 | 地址 | 内容 |
 |---|---|
+| `/brief` | 网页：最新的研究简报 |
+| `/theses` | 网页：判断档案，每条判断带全部修订 |
 | `/watchlist` | 网页：观察中、已提名、市场背景、其他可查的标的 |
 | `/calendar` | 网页：未来 45 天的事件，正式、暂定、推测分开 |
 | `/topics/<实体>` | 标的的主题页顶部显示它的行情卡片和未来 21 天的事件 |
@@ -110,6 +146,9 @@ Hubble 的第 2、3 步（[执行方案](../../docs/research-plan.md)）。这�
 | MCP `hubble_get_instrument` | 不带参数返回观察清单和市场背景，带 `symbol`（如 `btc`、`IBIT`、`dgs10`）返回单个标的 |
 | `GET /api/research/events?days=21&instrument=sol` | 事件日历的 JSON（`days` 是 1–90，`instrument` 可选） |
 | MCP `hubble_list_events` | 同上，参数 `days`、`instrument` 都可选 |
-| `/api/v1/agent/instruments`、`/api/v1/agent/events` | 给只能读网页的 Agent 的 Markdown |
+| `GET /api/research/briefs/latest`、`/api/research/briefs/<日期>` | 研究简报的 JSON |
+| `GET /api/research/theses?status=open\|ended\|all`、`/api/research/theses/<id>` | 判断档案的 JSON |
+| MCP `hubble_get_brief`、`hubble_get_thesis` | 研究简报（可带 `date`）；判断档案（不带 `id` 列进行中的，带 `id` 给全部修订） |
+| `/api/v1/agent/instruments`、`/events`、`/brief`、`/theses` | 给只能读网页的 Agent 的 Markdown |
 
 快照保留 30 天，日线永久保留。

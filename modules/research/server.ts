@@ -1,16 +1,19 @@
-// The research module's backend (docs/research-plan.md, steps 2 and 3): quotes of the instruments in
-// instruments.json, the watchlist nominated by how much they are reported, the event calendar, and the ways
-// to read them.
+// The research module's backend (docs/research-plan.md, steps 2 to 4): quotes of the instruments in
+// instruments.json, the watchlist nominated by how much they are reported, the event calendar, the daily
+// brief with its candidate cards, the judgment archive, and the ways to read them.
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { defineServerModule } from "@aihot/backend/modules";
 import type { Finding } from "@aihot/backend/notify/feishu";
 import { authorized, unauthorized } from "@aihot/api/routes/ingest";
-import type { InstrumentView, WatchState } from "./contract.ts";
+import type { Card, InstrumentView, WatchState } from "./contract.ts";
+import { composeBrief, existingBrief, latestBrief } from "./backend/brief.ts";
+import { ThesisError, getThesis, latestPrice, listTheses, openThesis, ownerRevision } from "./backend/theses.ts";
+import { sql } from "@aihot/backend/db";
 import { CATALOG } from "./backend/catalog.ts";
 import { collectDaily, collectSnapshots, pruneSnapshots } from "./backend/collect.ts";
 import { OwnerEvent, addOwnerEvent, listEvents, scanReports, withdrawEvent } from "./backend/events.ts";
-import { detailAnswer, eventsAnswer, listAnswer } from "./backend/markdown.ts";
+import { briefAnswer, detailAnswer, eventsAnswer, listAnswer, thesesAnswer, thesisAnswer } from "./backend/markdown.ts";
 import { instrumentDetail, listInstruments } from "./backend/read.ts";
 import { WatchError, decide, nominate } from "./backend/watch.ts";
 
@@ -20,6 +23,7 @@ const CACHE = "public, max-age=30";
 const Decision = z.strictObject({ state: z.enum(["watching", "dropped"]), reason: z.string().trim().max(200).optional() });
 
 function http(app: FastifyInstance) {
+  briefRoutes(app);
   app.get("/api/research/instruments", async (_req, reply) => reply.header("Cache-Control", CACHE).send(await listInstruments()));
   app.get<{ Params: { id: string } }>("/api/research/instruments/:id", async (req, reply) => {
     const detail = await instrumentDetail(req.params.id);
@@ -72,6 +76,84 @@ function http(app: FastifyInstance) {
   });
 }
 
+const Condition = z.strictObject({
+  text: z.string().trim().min(1).max(200),
+  price: z.number().positive().optional(),
+  op: z.enum([">=", "<="]).optional(),
+});
+const OwnerThesis = z.strictObject({
+  instrument: z.string().trim().min(1).max(40),
+  whyNow: z.string().trim().min(1).max(300),
+  triggers: z.array(Condition).min(1).max(4),
+  invalidations: z.array(Condition).min(1).max(4),
+  horizonDays: z.number().int().min(3).max(90).default(14),
+  risks: z.array(z.string().trim().min(1).max(200)).max(4).default([]),
+});
+const OwnerRevision = z.strictObject({
+  kind: z.enum(["note", "status"]),
+  status: z.enum(["watching", "triggered", "invalidated", "withdrawn"]).optional(),
+  reason: z.string().trim().min(1).max(500),
+});
+const toCondition = (c: z.infer<typeof Condition>) => ({ text: c.text, ...(c.price ? { check: { metric: "price" as const, op: c.op ?? ">=", value: c.price } } : {}) });
+
+function briefRoutes(app: FastifyInstance) {
+  // { brief: null } before the first one, so a page can say so.
+  app.get("/api/research/briefs/latest", async (_req, reply) => reply.header("Cache-Control", CACHE).send({ brief: await latestBrief() }));
+  app.get<{ Params: { day: string } }>("/api/research/briefs/:day", async (req, reply) => {
+    const brief = /^\d{4}-\d{2}-\d{2}$/.test(req.params.day) ? await existingBrief(req.params.day) : null;
+    return brief ? reply.header("Cache-Control", CACHE).send(brief) : reply.code(404).header("Cache-Control", CACHE).send({ error: "not_found" });
+  });
+  app.get<{ Querystring: { status?: string } }>("/api/research/theses", async (req, reply) => {
+    const status = req.query.status ?? "all";
+    if (!["open", "ended", "all"].includes(status)) return reply.code(400).send({ error: "status is open, ended or all" });
+    const theses = await listTheses(status === "all" ? {} : { open: status === "open" });
+    return reply.header("Cache-Control", CACHE).send({ theses });
+  });
+  app.get<{ Params: { id: string } }>("/api/research/theses/:id", async (req, reply) => {
+    const id = Number(req.params.id);
+    const thesis = Number.isSafeInteger(id) ? await getThesis(id) : null;
+    return thesis ? reply.header("Cache-Control", CACHE).send(thesis) : reply.code(404).header("Cache-Control", CACHE).send({ error: "not_found" });
+  });
+  // The owner's own judgment, and the owner's notes and decisions on any judgment (appended, never edited).
+  app.post("/api/research/theses", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    if (!authorized(req)) return unauthorized(reply);
+    const body = OwnerThesis.safeParse(req.body ?? {});
+    if (!body.success) return reply.code(400).send({ ok: false, error: body.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    const instrument = CATALOG.instruments.find((i) => i.id === body.data.instrument.toLowerCase());
+    if (!instrument) return reply.code(404).send({ ok: false, error: "unknown instrument" });
+    const card: Card = {
+      level: "candidate", whyNow: body.data.whyNow, catalysts: [], evidence: { capital: [], narrative: [], rules: [] }, gaps: ["站长开立：证据见理由与笔记"],
+      triggers: body.data.triggers.map(toCondition), invalidations: body.data.invalidations.map(toCondition), risks: body.data.risks, horizonDays: body.data.horizonDays,
+    };
+    const price = await latestPrice(instrument.id);
+    const now = new Date();
+    const id = await sql.begin((tx) => openThesis(tx, { instrument: instrument.id, origin: "owner", card, reason: "站长开立", author: "owner", price: price?.price ?? null, priceAt: price?.at ?? null, now }));
+    return { ok: true, id };
+  });
+  app.post<{ Params: { id: string } }>("/api/research/theses/:id/revisions", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    if (!authorized(req)) return unauthorized(reply);
+    const body = OwnerRevision.safeParse(req.body ?? {});
+    const id = Number(req.params.id);
+    if (!body.success || !Number.isSafeInteger(id)) return reply.code(400).send({ ok: false, error: "kind is note or status (with status), and a reason is required" });
+    try {
+      await ownerRevision(id, body.data);
+    } catch (error) {
+      if (error instanceof ThesisError) return reply.code(error.status).send({ ok: false, error: error.message });
+      throw error;
+    }
+    return { ok: true };
+  });
+}
+
+const BRIEF_INPUT = z.strictObject({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Optional Beijing date YYYY-MM-DD. Omit for the latest brief."),
+});
+const THESIS_INPUT = z.strictObject({
+  id: z.number().int().positive().optional().describe("Optional judgment id. Omit for the open judgments."),
+});
+
 const EVENTS_INPUT = z.strictObject({
   days: z.number().int().min(1).max(90).default(21).describe("How many days ahead, 1 to 90. Defaults to 21."),
   instrument: z.string().trim().min(1).max(40).optional().describe("Optional instrument id such as btc or dgs10, to keep its events only."),
@@ -104,8 +186,11 @@ export default defineServerModule({
     { name: "research.nominate", cron: "25 8 * * *", run: () => nominate(), missed: "once" },
     // The calendar file, then the recent reports' future events (model calls; MODEL_CALLS_ENABLED applies).
     { name: "research.events", cron: "7,37 * * * *", run: () => scanReports() },
+    // After the quotes (08:12), the nominations (08:25) and the morning's event reading.
+    { name: "research.brief", cron: "45 8 * * *", run: () => composeBrief(), missed: "once" },
   ],
   models: {
+    researchCard: { label: "研究：候选卡（研究简报）", env: "RESEARCH_MODEL", purposes: ["research_card"] },
     catalyst: { label: "研究：从报道里抽未来事件（事件日历）", env: "CATALYST_MODEL", purposes: ["research_catalyst"] },
   },
   agent: {
@@ -153,6 +238,48 @@ export default defineServerModule({
           if (instrument && !found?.entityId) return { text: `没有叫「${instrument}」、能查事件的标的。`, structured: { schemaVersion: 1, events: null } };
           const list = await listEvents({ days, entity: found?.entityId ?? null });
           return { text: eventsAnswer(list), structured: { schemaVersion: 1, ...list } };
+        },
+      },
+    }, {
+      path: "/brief",
+      title: "研究简报",
+      ask: "今天值得关注的标的、它们的三权证据与缺口、触发与失效条件，以及已有判断的变化",
+      answer: async () => { const b = await latestBrief(); return b ? briefAnswer(b) : "# 研究简报\n\n还没有生成过研究简报（每天 08:45 北京时间生成）。"; },
+      etagPrefix: "research-brief",
+      cacheControl: "public, max-age=60",
+      mcp: {
+        tool: "get_brief",
+        use: "for the daily research brief: candidate cards with evidence, gaps, triggers and invalidations, judgment updates and upcoming events",
+        description: "Get the daily research brief (latest, or for a Beijing date): candidate instruments with capital, narrative and rule evidence each citing its source, gaps, trigger and invalidation conditions, leads, updates of earlier judgments, upcoming events and market background. Research preparation, not trading advice.",
+        input: BRIEF_INPUT,
+        run: async (args) => {
+          const { date } = BRIEF_INPUT.parse(args);
+          const brief = date ? await existingBrief(date) : await latestBrief();
+          if (!brief) return { text: date ? `${date} 没有研究简报。` : "还没有生成过研究简报。", structured: { schemaVersion: 1, brief: null } };
+          return { text: briefAnswer(brief), structured: { schemaVersion: 1, brief } };
+        },
+      },
+    }, {
+      path: "/theses",
+      title: "判断档案",
+      ask: "进行中的判断，以及某个判断从开立到结束的全部修订和复盘",
+      answer: async () => thesesAnswer(await listTheses({ open: true })),
+      etagPrefix: "research-theses",
+      cacheControl: "public, max-age=60",
+      mcp: {
+        tool: "get_thesis",
+        use: "for the judgment archive: open judgments, or one judgment with every revision and its review",
+        description: "Without an id, list the open judgments. With an id, get one judgment: its current card and every revision as written (append-only), with status changes, notes and the review of how the price went against its benchmark.",
+        input: THESIS_INPUT,
+        run: async (args) => {
+          const { id } = THESIS_INPUT.parse(args);
+          if (id === undefined) {
+            const open = await listTheses({ open: true });
+            return { text: thesesAnswer(open), structured: { schemaVersion: 1, theses: open } };
+          }
+          const thesis = await getThesis(id);
+          if (!thesis) return { text: `没有编号为 ${id} 的判断。`, structured: { schemaVersion: 1, thesis: null } };
+          return { text: thesisAnswer(thesis), structured: { schemaVersion: 1, thesis } };
         },
       },
     }],
