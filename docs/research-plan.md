@@ -85,10 +85,50 @@
 - **正常评价：** 解锁、回购、销毁、费用开关；治理通过并执行；ETF 审批与持仓披露；交易所上新和下架；指数纳入和剔除；监管落地；央行决议和数据日程；财报指引；带可核验数据的资金异常。
 - **压住：** 事后涨跌归因；没有依据的价格预测和喊单；不写来源去向的“巨鲸转账”；交易所营销、空投和返佣；技术形态帖；多事件早报合集；付费群引流。
 
-**首批信源方向（地址实施时逐个用后台“预览抓取”核实）：**
-- **T1 官方：** 美联储新闻 RSS、SEC 新闻、BLS/美国财政部发布、EIA；交易所公告（Binance、OKX、Coinbase）；以太坊基金会和 Solana 等项目博客；治理论坛的 Discourse RSS；观察清单公司的 SEC EDGAR 8-K Atom。SEC 要求请求头 User-Agent 带联系方式，用什么由你决定。
-- **T2：** CoinDesk、The Block、Blockworks 等加密媒体的 RSS；财经媒体 RSS。
-- **`hot_signal`：** 研究者和 KOL 的 X 账号（SocialData 按请求付费，可选）。
+**信源分层（按你给的清单）**
+
+原则如下：
+- 自动采集只接免费、有 RSS/JSON 或稳定页面、允许转引摘要的来源。所有信源 `site_fulltext` 默认关，付费墙内容只留标题、摘要和链接。
+- 付费或需授权的数据不进首版。
+- 查询工具类只在页面上给核对链接，不自动采集。
+- 地址都要在第 1 步用后台“预览抓取”逐个核实，本环境无法访问外网。抓不到的改用自建 RSSHub（`PRIVATE_FEED_HOSTS=rsshub`）或放弃。
+- 首批控制在约 40 个信源，因为模型费用和每天进来的条数成正比。
+
+*A. 新闻与公告 → `industry/sources.json`（引擎采集）*
+
+| 分级 / 参与方式 | 信源 |
+|---|---|
+| T1 官方一手（`editorial`） | 美联储、SEC、CFTC、BLS、BEA、美国财政部、EIA（石油周报）、OPEC、WGC 的新闻发布；SFC、HKMA、香港政府新闻公报；国家统计局、人民银行；ECB、BOJ、BOE；观察清单公司的 SEC EDGAR 文件（8-K、10-Q/K、Form 4、13D/G，Atom）及其 IR 页面；HKEXnews 上观察清单港股的公告（接入方式待核实）；交易所公告（Binance、OKX、Coinbase、Kraken、Bybit，只收上新、下架和合约规则这几类）；观察项目的官网、博客和治理论坛（Discourse RSS）；ETF 发行商的产品页和文件（如 IBIT，`web_list`） |
+| T2 媒体（`editorial`） | CoinDesk、The Block、Blockworks、DL News、Decrypt、CryptoSlate、CNBC、MarketWatch、OilPrice；中文深度稿：PANews、Odaily、ChainCatcher、TechFlow、律动、Foresight、华尔街见闻、格隆汇、智通财经（大多要经 RSSHub，路由待核实） |
+| T2 研究（分类 `research`） | Galaxy Research、Binance Research、Coinbase Institutional、Kaiko Research、K33，以及 Messari、Delphi、Blockworks Research 的免费部分；纽约联储、亚特兰大联储（GDPNow 标为“模型估计”）、克利夫兰联储、BIS、IMF。NBER、SSRN、arXiv q-fin 量大，先不接，或只按观察主题的关键词接 |
+| `hot_signal`（只算传播，不当事实） | 中文快讯流（律动、Odaily、PANews、财联社的快讯）：同一消息多家快讯正好用来算扩散度；研究者和官方的 X 账号（SocialData 按请求付费，可选；X 官方开发者平台费用更高）。雪球是用户发帖，首版不接 |
+
+Reuters、Bloomberg、WSJ、财新、信报、南华早报这类没有免费订阅源或有付费墙的，首版不直接采集，它们的报道通过其他来源转引进来。Reuters Connect 是授权渠道，不接。
+
+*B. 行情与数据 → `modules/research` 的数据适配器*
+
+| 阶段 | 来源 | 用途 |
+|---|---|---|
+| 首版（免费） | OKX 或 Binance 公开接口，按服务器所在地二选一；Bybit 可选作交叉校验 | 价格、成交额、资金费率、未平仓量、基差 |
+| 首版 | Deribit 公开接口（无 key） | DVOL、期权隐含波动率：投机市场循环里的“波动率”环节 |
+| 首版 | CoinGecko Demo | 长尾币价格和市值 |
+| 首版 | DefiLlama 免费端点 | 稳定币供应、TVL、协议费用：资本权 |
+| 首版 | FRED | 美股指数、利率、美元、WTI 和 Brent |
+| 首版 | EIA Open Data（免费 key） | 原油和成品油库存周数据 |
+| 首版 | CFTC COT 公开数据 | 黄金、原油、BTC/ETH 期货的分类持仓（每周）：资本权 |
+| 首版 | SEC EDGAR API（免费，请求头 User-Agent 要带联系方式） | 公司提交记录、Form 4、13F：用原始文件替代 OpenInsider 和 WhaleWisdom |
+| 首版 | 美股日线：从 Tiingo、Twelve Data、Finnhub、Alpha Vantage、FMP 的免费档里选一个，第 2 步实测后定 | 观察清单股票和 ETF |
+| 第二阶段 | ETF 资金流：SoSoValue（要申请）或 Farside（网页，先确认使用条款） | 资本权 |
+| 第二阶段 | Coinalyze、Coin Metrics Community 的免费 API（是否免费待核实） | 跨交易所衍生品、网络指标 |
+| 第二阶段 | Polymarket、Kalshi 公开接口 | 只展示事件合约价格，标注“不等于真实概率” |
+| 第二阶段 | 港股行情：Futu OpenAPI | 需要富途账户，并在本机运行 OpenD，额度看账户 |
+| 第二阶段 | Etherscan API、Dune（免费额度，查询逻辑要自己核对）、ALFRED（数据的历史版本）、Baker Hughes 钻机数 | — |
+| 不进首版（付费或需授权） | CoinGlass、Laevitas、Glassnode、CryptoQuant、Nansen、Kaiko、Artemis、Token Terminal、Tokenomist API、Massive/Polygon、Databento、IBKR、Unusual Whales、FactSet、LSEG、Wind、Choice、Visible Alpha、AlphaSense、Platts、Argus、Kpler、Vortexa、卓创、隆众、金联创、Metals Focus、各独立研究机构、Zacks、Estimize、Morningstar、Seeking Alpha、Quartr、慧博、发现报告、S&P Global PMI | 以后真有需要、并确认授权后再按适配器加 |
+| 不接 | Trading Economics、Econoday 的共识预期（授权数据）；CME FedWatch（没有公开接口，不抓网页）；LBMA、上海金基准价（授权待核实，首版用 ETF 和期货代替） | 首版不显示“市场共识” |
+
+*C. 只作人工核对（页面给链接，不自动采集）：* 链浏览器（Etherscan、Solscan、mempool.space、Blockstream、Blockchair）、CCASS、互联互通持股、权益披露查询、公司注册处、TradingView、Investing.com、yfinance（只用于探索）、AAStocks、经济通、理杏仁、东方财富、同花顺、Kitco，各交易所页面（CME、ICE、SHFE、INE、SGE、MCX），巨潮资讯、上交所、深交所（研究 A/H 联动时再加）。
+
+*D. 事件日历种子（`calendar.json`，每年手录一次，等级为“正式”，附官方链接）：* FOMC、BLS（CPI、非农、PPI）、BEA（GDP、PCE）、EIA 周报时间、OPEC+ 会议、ECB/BOJ/BOE 议息，以及香港和内地的统计发布日程。
 
 ---
 
@@ -175,6 +215,7 @@
 
 | 来源 | 用途 | 鉴权 | 费用和限制 | 核实状态 |
 |---|---|---|---|---|
+| Deribit、DefiLlama、CFTC COT、SEC EDGAR、EIA | 波动率、稳定币和费用、期货持仓、公司披露、原油库存 | EIA 要免费 key，SEC 要 User-Agent 写联系方式，其余无 key | 免费；按各自限流 | 未实测 |
 | Binance 或 OKX 公开接口 | 加密价格和衍生品 | 无 | 按 IP 权重限流。Binance 对美国 IP 拒绝服务；服务器在大陆要设 `EGRESS_PROXY_URL` | 本环境网络受限，没法实测；按服务器所在地选一家，实施时先实测 |
 | CoinGecko Demo | 交易所没有的币 | 免费 key | 约 1 万次/月，100 次/分钟，要求署名（来源是第三方文章） | 待到官网复核 |
 | FRED | 指数、利率、美元、原油 | 免费 key | 约 120 次/分钟（二手来源） | 待复核 |
@@ -199,7 +240,7 @@
 **第 0 步：你来定，定下来之前不动手。**
 1. 站名
 2. 观察清单（具体代码）
-3. 信源清单（我先给初稿，你来删改）
+3. ~~信源清单~~：已按你的清单分层（第 2 节），请确认分层
 4. 分类草案
 5. 部署方式和服务器所在地（决定用哪家交易所接口）
 6. 用哪家模型
