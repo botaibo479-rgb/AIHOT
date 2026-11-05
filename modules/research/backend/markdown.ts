@@ -1,7 +1,7 @@
 // The Agent answers (MCP hubble_get_instrument, /api/v1/agent/instruments): the same numbers as the JSON, as
 // Markdown, ending with how to tell them to the person asking.
 import { SITE } from "@aihot/site";
-import { MARKET_LABELS, WATCH_LABELS, formatMove, formatNumber, formatPercent, type InstrumentDetail, type InstrumentList, type InstrumentView } from "../contract.ts";
+import { CONFIRMATION_LABELS, MARKET_LABELS, WATCH_LABELS, formatEventDate, formatMove, formatNumber, formatPercent, type EventList, type EventView, type InstrumentDetail, type InstrumentList, type InstrumentView } from "../contract.ts";
 
 function quoteLine(v: InstrumentView): string {
   const q = v.quote;
@@ -52,11 +52,36 @@ export function detailAnswer(d: InstrumentDetail): string {
     ...(d.quote ? [`- 30 日日波动率 ${d.quote.volatility30d === null ? "—" : formatPercent(d.quote.volatility30d)}；成交额相对 20 日均值 ${d.quote.volumeRatio === null ? "—" : `${d.quote.volumeRatio.toFixed(2)} 倍`}`] : []),
     ...(d.attention ? [`- 报道：48 小时内 ${d.attention.sources48h} 个来源、${d.attention.reports48h} 篇；此前 48 小时 ${d.attention.sourcesPrev48h} 个来源`] : []),
     `- 标记：${flagText(d)}`,
+    ...(d.upcoming.length ? [`- 未来 21 天：${d.upcoming.map((e) => `${formatEventDate(e)} ${e.title}（${CONFIRMATION_LABELS[e.confirmation]}）`).join("；")}`] : []),
     ...(d.topic ? [`- 相关报道：/topics/${d.topic}`] : []),
     "",
     ...(last.length ? ["## 最近 7 个日值", ...last.map((l) => `- ${l}`), ""] : []),
     "## 回答提示",
     `- ${d.flagNote}`,
     "- 日值按数据源自己的日期：加密按 UTC 日，美股和 FRED 按美国交易日。",
+  ].join("\n");
+}
+
+function eventLine(e: EventView): string {
+  const where = e.instruments.length ? `；相关标的 ${e.instruments.join("、")}` : "";
+  const from = e.url ? `；出处 ${e.url}` : "";
+  const quote = e.quote ? `；原文：“${e.quote}”` : "";
+  return `- ${formatEventDate(e)}：**${e.title}**（\`${e.id}\`${where}${e.articles.length > 1 ? `；${e.articles.length} 篇报道` : ""}${from}${quote}）`;
+}
+
+export function eventsAnswer(list: EventList): string {
+  const section = (title: string, events: EventView[]) => [`## ${title}`, ...(events.length ? events.map(eventLine) : ["（暂无）"]), ""];
+  return [
+    `# ${SITE.name} 事件日历：${list.from} 至 ${list.to}`,
+    "",
+    list.note,
+    "",
+    ...section("正式日程", list.official),
+    ...section("暂定安排", list.tentative),
+    ...section("研究推测（不是日程）", list.speculative),
+    "## 回答提示",
+    "- 三类分开说：正式日程是机构公布的，暂定安排可能改期，研究推测只是有人这样猜。",
+    "- 不要补概率、市场共识或“已经定价多少”；这里没有这些数据。",
+    "- 带原文的事件是从公开报道里读出来的，转述时附上出处。",
   ].join("\n");
 }

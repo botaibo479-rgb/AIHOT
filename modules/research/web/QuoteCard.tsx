@@ -1,6 +1,6 @@
 // One instrument's numbers, as the watchlist page and its topic page show them.
 import { Badge } from "@aihot/web/components/ui/Badge";
-import { WATCH_LABELS, formatMove, formatNumber, formatPercent, type InstrumentView } from "../contract.ts";
+import { CONFIRMATION_LABELS, WATCH_LABELS, formatEventDate, formatMove, formatNumber, formatPercent, type InstrumentView } from "../contract.ts";
 
 const time = (iso: string, daily: boolean) => (daily ? iso.slice(0, 10) : `${iso.slice(0, 16).replace("T", " ")} UTC`);
 
@@ -31,6 +31,11 @@ export function QuoteCard({ view }: { view: InstrumentView }) {
         <p className="mt-1.5 text-[13px] text-ink-3">{view.quoteNote}</p>
       )}
       {view.flags.length > 0 && <p className="mt-1 text-[12px] text-ink-4">{view.flags.map((f) => f.detail).join("；")}</p>}
+      {view.upcoming.length > 0 && (
+        <p className="mt-1 text-[12px] text-ink-3">
+          未来 21 天：{view.upcoming.slice(0, 3).map((e) => `${formatEventDate(e)} ${e.title}（${CONFIRMATION_LABELS[e.confirmation]}）`).join("；")}
+        </p>
+      )}
     </div>
   );
 }

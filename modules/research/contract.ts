@@ -70,6 +70,8 @@ export interface InstrumentView {
   quoteNote: string | null;
   attention: AttentionView | null;
   flags: Flag[];
+  /** Its entity's events from today to 21 days ahead, the official first. */
+  upcoming: EventView[];
 }
 
 export interface InstrumentList {
@@ -91,6 +93,50 @@ export interface InstrumentDetail extends InstrumentView {
   flagNote: string;
   /** The last 30 daily values, oldest first. */
   daily: DailyPoint[];
+}
+
+export type Confirmation = "official" | "tentative" | "speculative";
+export type DatePrecision = "day" | "month" | "quarter" | "unknown";
+
+export interface EventView {
+  id: number;
+  title: string;
+  /** Entities (industry/taxonomy.ts) and the module's instruments of those entities. */
+  entities: string[];
+  instruments: string[];
+  /** YYYY-MM-DD; with a month or quarter precision, its first day. Null: no date. */
+  startsOn: string | null;
+  precision: DatePrecision;
+  confirmation: Confirmation;
+  origin: "calendar" | "article" | "owner";
+  url: string | null;
+  /** The sentence of the report that supports it, as written. */
+  quote: string | null;
+  /** The public reports it was read from (article ids). */
+  articles: string[];
+}
+
+export interface EventList {
+  generatedAt: string;
+  from: string;
+  to: string;
+  note: string;
+  official: EventView[];
+  tentative: EventView[];
+  /** Guesses, dated or not: never a schedule. */
+  speculative: EventView[];
+}
+
+export const EVENT_NOTE = "正式日程是机构已公布的日期；暂定安排是计划、预计或机构自己标为暂定的日期；研究推测只是有人这样猜，不是日程。这里不给概率，也不说“已经定价”。";
+export const CONFIRMATION_LABELS: Record<Confirmation, string> = { official: "正式", tentative: "暂定", speculative: "推测" };
+
+/** "12 月 9 日", "2027 年 1 月", "2027 年第 1 季度", "日期未定". */
+export function formatEventDate(e: Pick<EventView, "startsOn" | "precision">): string {
+  if (!e.startsOn || e.precision === "unknown") return "日期未定";
+  const [y, m, d] = e.startsOn.split("-").map(Number) as [number, number, number];
+  if (e.precision === "quarter") return `${y} 年第 ${Math.floor((m - 1) / 3) + 1} 季度`;
+  if (e.precision === "month") return `${y} 年 ${m} 月`;
+  return `${y} 年 ${m} 月 ${d} 日`;
 }
 
 export const FLAG_NOTE = "标记是按固定阈值筛出来的“值得看一眼”，不是验证过的交易信号；资金变化不等于买卖方向。";

@@ -1,0 +1,158 @@
+{
+  "$comment": "官方日程，每年从官方页面手录一次（docs/research-plan.md 第 4 节）。key 不要改；改了日期或删掉一项，下次同步时日历跟着改或撤下。confirmation：official 是机构已确认的日期，tentative 是机构自己标为暂定的（Fed 下一年的会议在前一次会议确认前都是暂定）。2026-11-05 录入，来源见各项 url；BLS 曾因拨款中断改期，用前到 url 再核对一次。",
+  "events": [
+    {
+      "key": "fomc-2026-12",
+      "title": "美联储 FOMC 12 月议息决议（8–9 日会议，含经济预测）",
+      "date": "2026-12-09",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "official",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-01",
+      "title": "美联储 FOMC 议息决议（1 月）",
+      "date": "2027-01-27",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-03",
+      "title": "美联储 FOMC 议息决议（3 月，含经济预测）",
+      "date": "2027-03-17",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-04",
+      "title": "美联储 FOMC 议息决议（4 月）",
+      "date": "2027-04-28",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-06",
+      "title": "美联储 FOMC 议息决议（6 月，含经济预测）",
+      "date": "2027-06-09",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-07",
+      "title": "美联储 FOMC 议息决议（7 月）",
+      "date": "2027-07-28",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-09",
+      "title": "美联储 FOMC 议息决议（9 月，含经济预测）",
+      "date": "2027-09-15",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-10",
+      "title": "美联储 FOMC 议息决议（10 月）",
+      "date": "2027-10-27",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "fomc-2027-12",
+      "title": "美联储 FOMC 议息决议（12 月，含经济预测）",
+      "date": "2027-12-08",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "tentative",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    },
+    {
+      "key": "bls-nfp-2026-11",
+      "title": "美国 11 月非农就业报告（BLS）",
+      "date": "2026-12-04",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "official",
+      "url": "https://www.bls.gov/schedule/news_release/empsit.htm"
+    },
+    {
+      "key": "bls-cpi-2026-11",
+      "title": "美国 11 月 CPI（BLS）",
+      "date": "2026-12-10",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "official",
+      "url": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "key": "bls-ppi-2026-11",
+      "title": "美国 11 月 PPI（BLS）",
+      "date": "2026-12-15",
+      "entities": [
+        "fed"
+      ],
+      "confirmation": "official",
+      "url": "https://www.bls.gov/schedule/news_release/ppi.htm"
+    },
+    {
+      "key": "bls-nfp-2026-12",
+      "title": "美国 12 月非农就业报告（BLS）",
+      "date": "2027-01-08",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "official",
+      "url": "https://www.bls.gov/schedule/news_release/empsit.htm"
+    },
+    {
+      "key": "bls-cpi-2026-12",
+      "title": "美国 12 月 CPI（BLS）",
+      "date": "2027-01-13",
+      "entities": [
+        "fed",
+        "us-dollar"
+      ],
+      "confirmation": "official",
+      "url": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    }
+  ]
+}

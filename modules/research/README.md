@@ -1,12 +1,13 @@
-# 研究模块：标的、行情与观察清单
+# 研究模块：标的、行情、观察清单与事件日历
 
-Hubble 的第 2 步（[执行方案](../../docs/research-plan.md)）。这个模块只管三件事：
+Hubble 的第 2、3 步（[执行方案](../../docs/research-plan.md)）。这个模块管四件事：
 
 - 给目录里的标的取行情；
 - 按报道的聚合程度提名观察清单，再由你确认；
+- 事件日历：官方日程表，加上从公开报道里读出的未来事件；
 - 通过网页、JSON、MCP 把这些数据交出去。
 
-模块不调模型，也不改引擎。
+只有事件日历调模型（模型步骤“研究：从报道里抽未来事件”），引擎不改。
 
 ## 标的目录：`instruments.json`
 
@@ -65,15 +66,50 @@ Hubble 的第 2 步（[执行方案](../../docs/research-plan.md)）。这个模
 - **传播在扩散**：48 小时内的独立来源够多，并且比前 48 小时多。
 - **传播扩散，价格未明显反应**：在“传播在扩散”的基础上，24 小时涨跌还很小。
 
+## 事件日历
+
+事件有三个来源：
+
+1. **官方日程表** `calendar.json`：FOMC、非农、CPI、PPI 等，每年从官方页面手录一次，每项带 `url`。
+   - `confirmation` 只能是 `official`（机构已确认）或 `tentative`（机构自己标为暂定，比如 Fed 下一年的会议）。
+   - 每 30 分钟同步一次：改了日期的跟着改，删掉的撤下（留记录）。
+   - 现在录的是 2026 年 12 月的 FOMC、非农、CPI、PPI，2027 年 1 月的非农和 CPI，以及 2027 年全年的 FOMC（暂定）。2026-11-05 录入，用前到 url 再核对一次。
+2. **公开报道**：每 30 分钟读最近 3 天的精选和高分报道（平均分不低于 `industry/selection.ts` 的 `understandFloor`），每篇的每个版本只读一次。提示词是 `industry/prompts/research-catalyst.md`。模型说的事件要过这几道检查才上日历：
+   - 原文里找得到逐字引句；
+   - 涉及的实体在名录里；
+   - 日期真实存在，并且还没过去；
+   - 没有日期的“正式事件”降为暂定。
+
+   同一日期、同一精度、至少有一个相同实体的事件算同一件：后来的报道并进去，保留每篇出处；确认等级只升不降。
+3. **你自己记的**：用推送令牌调用接口添加。
+
+   ```bash
+   curl -X POST http://<主机>:3000/api/research/events -H "Authorization: Bearer $INGEST_TOKEN" -H "Content-Type: application/json" \
+     -d '{"title":"某交易所上线 SOL 新合约","date":"2026-11-12","confirmation":"official","entities":["solana"],"url":"https://…"}'
+   ```
+
+读错的事件用 `POST /api/research/events/<id>/withdraw`（body 写 `{"reason":"…"}`）撤下，不删除。
+
+三类事件始终分开列：
+
+- **正式日程**：机构已公布的日期。
+- **暂定安排**：计划、预计、机构自己标为暂定的日期。
+- **研究推测**：只是有人这样猜，不是日程。
+
+不给概率，不写“市场共识”。
+
 ## 读取
 
 | 地址 | 内容 |
 |---|---|
 | `/watchlist` | 网页：观察中、已提名、市场背景、其他可查的标的 |
-| `/topics/<实体>` | 标的的主题页顶部显示它的行情卡片 |
+| `/calendar` | 网页：未来 45 天的事件，正式、暂定、推测分开 |
+| `/topics/<实体>` | 标的的主题页顶部显示它的行情卡片和未来 21 天的事件 |
 | `GET /api/research/instruments` | 全部标的的 JSON |
 | `GET /api/research/instruments/<id 或代码>` | 单个标的，含最近 30 个日值 |
 | MCP `hubble_get_instrument` | 不带参数返回观察清单和市场背景，带 `symbol`（如 `btc`、`IBIT`、`dgs10`）返回单个标的 |
-| `/api/v1/agent/instruments` | 给只能读网页的 Agent 的 Markdown |
+| `GET /api/research/events?days=21&instrument=sol` | 事件日历的 JSON（`days` 是 1–90，`instrument` 可选） |
+| MCP `hubble_list_events` | 同上，参数 `days`、`instrument` 都可选 |
+| `/api/v1/agent/instruments`、`/api/v1/agent/events` | 给只能读网页的 Agent 的 Markdown |
 
 快照保留 30 天，日线永久保留。

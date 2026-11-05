@@ -1,5 +1,6 @@
-// The research module's backend (docs/research-plan.md, step 2): quotes of the instruments in
-// instruments.json, the watchlist nominated by how much they are reported, and the ways to read them.
+// The research module's backend (docs/research-plan.md, steps 2 and 3): quotes of the instruments in
+// instruments.json, the watchlist nominated by how much they are reported, the event calendar, and the ways
+// to read them.
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { defineServerModule } from "@aihot/backend/modules";
@@ -8,7 +9,8 @@ import { authorized, unauthorized } from "@aihot/api/routes/ingest";
 import type { InstrumentView, WatchState } from "./contract.ts";
 import { CATALOG } from "./backend/catalog.ts";
 import { collectDaily, collectSnapshots, pruneSnapshots } from "./backend/collect.ts";
-import { detailAnswer, listAnswer } from "./backend/markdown.ts";
+import { OwnerEvent, addOwnerEvent, listEvents, scanReports, withdrawEvent } from "./backend/events.ts";
+import { detailAnswer, eventsAnswer, listAnswer } from "./backend/markdown.ts";
 import { instrumentDetail, listInstruments } from "./backend/read.ts";
 import { WatchError, decide, nominate } from "./backend/watch.ts";
 
@@ -38,7 +40,42 @@ function http(app: FastifyInstance) {
     }
     return { ok: true };
   });
+
+  app.get<{ Querystring: { days?: string; instrument?: string } }>("/api/research/events", async (req, reply) => {
+    const days = req.query.days === undefined ? 21 : Number(req.query.days);
+    if (!Number.isInteger(days) || days < 1 || days > 90) return reply.code(400).send({ error: "days is 1 to 90" });
+    const instrument = req.query.instrument ? CATALOG.instruments.find((i) => i.id === req.query.instrument!.toLowerCase()) : null;
+    if (req.query.instrument && !instrument?.entityId) return reply.code(404).send({ error: "not_found" });
+    return reply.header("Cache-Control", CACHE).send(await listEvents({ days, entity: instrument?.entityId ?? null }));
+  });
+  // The owner's own events, and taking a wrong one off the calendar (kept, with why).
+  app.post("/api/research/events", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    if (!authorized(req)) return unauthorized(reply);
+    const body = OwnerEvent.safeParse(req.body ?? {});
+    if (!body.success) return reply.code(400).send({ ok: false, error: body.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    try {
+      return { ok: true, id: await addOwnerEvent(body.data) };
+    } catch (error) {
+      if (error instanceof RangeError) return reply.code(400).send({ ok: false, error: error.message });
+      throw error;
+    }
+  });
+  app.post<{ Params: { id: string } }>("/api/research/events/:id/withdraw", async (req, reply) => {
+    reply.header("Cache-Control", "no-store");
+    if (!authorized(req)) return unauthorized(reply);
+    const body = z.strictObject({ reason: z.string().trim().min(1).max(200) }).safeParse(req.body ?? {});
+    const id = Number(req.params.id);
+    if (!body.success || !Number.isSafeInteger(id)) return reply.code(400).send({ ok: false, error: "a reason (at most 200 characters) is required" });
+    if (!(await withdrawEvent(id, body.data.reason))) return reply.code(404).send({ ok: false, error: "no such event on the calendar" });
+    return { ok: true };
+  });
 }
+
+const EVENTS_INPUT = z.strictObject({
+  days: z.number().int().min(1).max(90).default(21).describe("How many days ahead, 1 to 90. Defaults to 21."),
+  instrument: z.string().trim().min(1).max(40).optional().describe("Optional instrument id such as btc or dgs10, to keep its events only."),
+});
 
 const INSTRUMENT_INPUT = z.strictObject({
   symbol: z.string().trim().min(1).max(40).optional().describe("Optional instrument id, symbol or name, such as btc, IBIT or dgs10. Omit for the whole watchlist with the market background."),
@@ -65,7 +102,12 @@ export default defineServerModule({
     // After the UTC day closes (08:00 Beijing) and after the US session's values are out.
     { name: "research.daily", cron: "12 8 * * *", run: () => collectDaily(), missed: "once", when: collecting },
     { name: "research.nominate", cron: "25 8 * * *", run: () => nominate(), missed: "once" },
+    // The calendar file, then the recent reports' future events (model calls; MODEL_CALLS_ENABLED applies).
+    { name: "research.events", cron: "7,37 * * * *", run: () => scanReports() },
   ],
+  models: {
+    catalyst: { label: "研究：从报道里抽未来事件（事件日历）", env: "CATALYST_MODEL", purposes: ["research_catalyst"] },
+  },
   agent: {
     abilities: [{
       path: "/instruments",
@@ -91,6 +133,26 @@ export default defineServerModule({
             return { text: `没有叫「${symbol}」的标的。可以查的：${ids}。`, structured: { schemaVersion: 1, instrument: null, known: CATALOG.instruments.map((i) => i.id) } };
           }
           return { text: detailAnswer(detail), structured: { schemaVersion: 1, instrument: detail } };
+        },
+      },
+    }, {
+      path: "/events",
+      title: "事件日历",
+      ask: "未来几天到几周有哪些事件（议息、数据发布、解锁、升级、审批），哪些是正式日程、哪些是暂定或推测",
+      answer: async () => eventsAnswer(await listEvents()),
+      etagPrefix: "research-events",
+      cacheControl: "public, max-age=60",
+      mcp: {
+        tool: "list_events",
+        use: "for upcoming scheduled, tentative and speculative events, each with its date, instruments and source",
+        description: "List upcoming events in three groups: official schedules, tentative plans and speculation (never a schedule). Each has its date and precision, the instruments it concerns and its source quote. No probabilities or consensus are given.",
+        input: EVENTS_INPUT,
+        run: async (args) => {
+          const { days, instrument } = EVENTS_INPUT.parse(args);
+          const found = instrument ? CATALOG.instruments.find((i) => i.id === instrument.toLowerCase()) : null;
+          if (instrument && !found?.entityId) return { text: `没有叫「${instrument}」、能查事件的标的。`, structured: { schemaVersion: 1, events: null } };
+          const list = await listEvents({ days, entity: found?.entityId ?? null });
+          return { text: eventsAnswer(list), structured: { schemaVersion: 1, ...list } };
         },
       },
     }],

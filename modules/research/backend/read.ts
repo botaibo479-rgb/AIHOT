@@ -5,6 +5,7 @@ import { sql } from "@aihot/backend/db";
 import { listedCondition } from "@aihot/backend/publication/scope";
 import { FLAG_NOTE, type AttentionView, type DailyPoint, type Flag, type InstrumentDetail, type InstrumentList, type InstrumentView, type QuoteView, type WatchState } from "../contract.ts";
 import { CATALOG, byId, topicOf, type Instrument } from "./catalog.ts";
+import { upcomingByEntity } from "./events.ts";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -133,13 +134,14 @@ export function flagsOf(quote: QuoteView | null, attention: AttentionView | null
 async function load(now: Date, ids?: string[]) {
   const instruments = ids ? CATALOG.instruments.filter((i) => ids.includes(i.id)) : CATALOG.instruments;
   const list = instruments.map((i) => i.id);
-  const [snaps, days, watch, attention] = await Promise.all([
+  const [snaps, days, watch, attention, upcoming] = await Promise.all([
     sql<SnapshotRow[]>`SELECT DISTINCT ON (instrument_id) * FROM research_quotes WHERE instrument_id = ANY(${list}::text[]) ORDER BY instrument_id, at DESC`,
     sql<DailyRow[]>`SELECT instrument_id, day::text AS day, close, volume, open_interest FROM (
         SELECT *, row_number() OVER (PARTITION BY instrument_id ORDER BY day DESC) AS k FROM research_daily WHERE instrument_id = ANY(${list}::text[])) d
       WHERE k <= 41 ORDER BY instrument_id, day`,
     sql<WatchRow[]>`SELECT * FROM research_watch WHERE instrument_id = ANY(${list}::text[])`,
     attentionByEntity(now, 48),
+    upcomingByEntity(now),
   ]);
   const series = new Map<string, DailyRow[]>();
   for (const d of days) series.set(d.instrument_id, [...(series.get(d.instrument_id) ?? []), d]);
@@ -158,6 +160,7 @@ async function load(now: Date, ids?: string[]) {
       quoteNote: !i.quote ? "行情还没接入（港股行情在后续阶段）" : quote ? null : "还没有取到行情",
       attention: seen,
       flags: flagsOf(quote, seen),
+      upcoming: i.entityId ? upcoming.get(i.entityId) ?? [] : [],
     };
     return { view, rows };
   });

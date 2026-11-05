@@ -254,7 +254,7 @@ Reuters、Bloomberg、WSJ、财新、信报、南华早报这类没有免费订�
 - `instruments.json`、数据接口适配、`research_quotes`、信号计算、标的主题页部件、`get_instrument`、过期告警。
 - 测试用本地假服务回放保存的 JSON，不访问外部服务。
 
-**进度（2026-11-05）：** 第 1 步已完成并通过检查；第 2 步的研究模块已完成，说明见 `modules/research/README.md`。目录里的标的、数据源与提名规则见 `modules/research/instruments.json`。交易所、FRED 和 Twelve Data 接口还要在香港服务器上实测。
+**进度（2026-11-05）：** 第 1 步已完成并通过检查；第 2 步（行情与观察清单）和第 3 步（事件日历）已完成，说明见 `modules/research/README.md`。目录里的标的、数据源与提名规则见 `modules/research/instruments.json`。交易所、FRED 和 Twelve Data 接口还要在香港服务器上实测。
 
 **第 3 步：事件日历。**
 - `catalyst` 模型步骤、`calendar.json`、`/calendar` 页面、`list_events`、`POST /events`。
