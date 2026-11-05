@@ -2,4 +2,9 @@
 // 写作那一步写完中文标题、摘要和推荐理由后逐个查，用了就让模型只改这些地方一次（packages/backend/src/editorial/
 // analyze.ts 的 mendWording）。只列一眼就能判断的写法：拿不准的不列，否则会误改正常的词。空着就不查。
 
-export const READER_WORDING: ReadonlyArray<readonly [RegExp, string]> = [];
+export const READER_WORDING: ReadonlyArray<readonly [RegExp, string]> = [
+  [/暴涨|暴跌|狂飙|闪崩|起飞|腰斩/u, "不用夸张的涨跌说法，写出原文给的具体涨跌幅或直接说上涨、下跌"],
+  [/必涨|必跌|稳赚|抄底|梭哈|上车|百倍币?|千倍币?/u, "不写喊单和买卖建议，只写原文的事实"],
+  [/巨鲸(?:买入|抛售|砸盘|抄底)/u, "大额转账不等于买卖，写成某地址转出或转入多少，并写明来源"],
+  [/重磅|炸裂|史诗级/u, "不用夸张的说法，直接写发生了什么"],
+];

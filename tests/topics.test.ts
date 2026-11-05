@@ -3,7 +3,7 @@
 // - a company topic takes an article about another company that only mentions it (several subjects,
 //   its name nowhere in the title), or drops one about it whose title names it in English, in another
 //   case, next to Chinese text, or only by a product (it is the article's only subject);
-// - a Latin name matches inside another word ("Metadata" is not Meta); a headline naming a company
+// - a Latin name matches inside another word ("Security" is not SEC); a headline naming a company
 //   that is not a subject of the article gets in;
 // - a technical-direction topic stops taking its tags;
 // - withdrawn or not yet released articles appear in a list or a count;
@@ -58,7 +58,7 @@ async function report(r: Report): Promise<string> {
   });
   await sql`UPDATE articles SET discovered_at = ${r.at}, timeline_at = ${r.at}, grouped_at = now() WHERE id = ${articleId}`;
   await sql`INSERT INTO analyses (article_id, input_revision, origin, relevance, category, title_zh, summary_zh, score, selected, subjects, tags)
-            VALUES (${articleId}, 1, 'rule', 'pass', ${r.category ?? "ai-models"}, ${r.title}, ${`摘要 ${n}`}, ${r.score ?? 80}, ${r.selected ?? true}, ${r.subjects ?? []}, ${[r.category === "ai-products" ? "产品更新" : r.category === "paper" ? "论文/研究" : r.category === "tip" ? "教程/实践" : r.category === "industry" ? "行业动态" : r.category === "opinion" ? "大佬观点" : "模型发布", ...(r.tags ?? [])]})`;
+            VALUES (${articleId}, 1, 'rule', 'pass', ${r.category ?? "crypto"}, ${r.title}, ${`摘要 ${n}`}, ${r.score ?? 80}, ${r.selected ?? true}, ${r.subjects ?? []}, ${[r.category === "equities" ? "公告与披露" : r.category === "fx" ? "宏观数据" : r.category === "research" ? "研究观点" : r.category === "macro" ? "监管与政策" : "机制与规则", ...(r.tags ?? [])]})`;
   if (r.fact) await sql`INSERT INTO fact_articles (fact_id, article_id, role) VALUES (${r.fact}, ${articleId}, 'report')`;
   await publishArticle(articleId, { releasedAt: new Date(r.at.getTime() + 60_000) });
   return articleId;
@@ -91,42 +91,42 @@ async function members(slug: string): Promise<string[]> {
 }
 
 test("a company topic takes the articles about it, not the ones that only mention it", async () => {
-  const about = await report({ at: hoursAgo(30), title: `Claude Code 推出插件 ${T}`, subjects: ["anthropic"] });
-  const product = await report({ at: hoursAgo(31), title: `Sonnet 新版上线 ${T}`, subjects: ["anthropic"] });
-  const english = await report({ at: hoursAgo(32), title: `新模型发布 ${T}`, originalTitle: `Anthropic launches a model ${T}`, subjects: ["anthropic", "openai"] });
-  const subpoena = await report({ at: hoursAgo(33), title: `加州检察长向 OpenAI 发出传票 ${T}`, subjects: ["openai", "anthropic", "hugging-face"] });
-  const lowerCase = await report({ at: hoursAgo(34), title: `openai 公布新的安全框架 ${T}`, subjects: ["openai", "anthropic"] });
-  const pact = await report({ at: hoursAgo(35), title: `二十余家科技公司签署安全协议 ${T}`, subjects: ["openai", "anthropic", "google"] });
-  const metadata = await report({ at: hoursAgo(36), title: `Metadata 标准发布，OpenAI 参与 ${T}`, subjects: ["meta", "openai"] });
-  const adjacent = await report({ at: hoursAgo(37), title: `发布Meta的新模型 ${T}`, subjects: ["meta", "openai"] });
-  const headline = await report({ at: hoursAgo(38), title: `Anthropic 被一篇盘点提到 ${T}`, subjects: ["google"] });
-  const agent = await report({ at: hoursAgo(39), title: `智能体框架发布 ${T}`, tags: ["Agent"] });
+  const about = await report({ at: hoursAgo(30), title: `Ether 质押提款开启 ${T}`, subjects: ["ethereum"] });
+  const product = await report({ at: hoursAgo(31), title: `质押队列规则更新 ${T}`, subjects: ["ethereum"] });
+  const english = await report({ at: hoursAgo(32), title: `网络升级激活 ${T}`, originalTitle: `Ethereum activates an upgrade ${T}`, subjects: ["ethereum", "bitcoin"] });
+  const subpoena = await report({ at: hoursAgo(33), title: `美国司法部就 Bitcoin 矿池发出传票 ${T}`, subjects: ["bitcoin", "ethereum", "tether"] });
+  const lowerCase = await report({ at: hoursAgo(34), title: `bitcoin 核心开发者公布新的软分叉提案 ${T}`, subjects: ["bitcoin", "ethereum"] });
+  const pact = await report({ at: hoursAgo(35), title: `二十余家交易所签署储备证明协议 ${T}`, subjects: ["bitcoin", "ethereum", "solana"] });
+  const metadata = await report({ at: hoursAgo(36), title: `Security 标准发布，Bitcoin 参与 ${T}`, subjects: ["sec", "bitcoin"] });
+  const adjacent = await report({ at: hoursAgo(37), title: `发布SEC的新规则 ${T}`, subjects: ["sec", "bitcoin"] });
+  const headline = await report({ at: hoursAgo(38), title: `Ethereum 被一篇盘点提到 ${T}`, subjects: ["solana"] });
+  const agent = await report({ at: hoursAgo(39), title: `永续合约规则调整 ${T}`, tags: ["衍生品"] });
 
-  const anthropic = await members("anthropic");
-  for (const id of [about, product, english]) assert.ok(anthropic.includes(id), "about Anthropic");
-  for (const id of [subpoena, lowerCase, pact, headline]) assert.ok(!anthropic.includes(id), "only mentions Anthropic");
-  const openai = await members("openai");
-  for (const id of [subpoena, lowerCase, metadata]) assert.ok(openai.includes(id), "about OpenAI");
-  for (const id of [english, pact]) assert.ok(!openai.includes(id), "only mentions OpenAI");
-  const meta = await members("meta");
-  assert.ok(meta.includes(adjacent), "Meta next to Chinese text");
-  assert.ok(!meta.includes(metadata), "Metadata is not Meta");
-  assert.ok((await members("agent")).includes(agent), "a technical direction takes its tag");
+  const ethereum = await members("ethereum");
+  for (const id of [about, product, english]) assert.ok(ethereum.includes(id), "about Ethereum");
+  for (const id of [subpoena, lowerCase, pact, headline]) assert.ok(!ethereum.includes(id), "only mentions Ethereum");
+  const bitcoin = await members("bitcoin");
+  for (const id of [subpoena, lowerCase, metadata]) assert.ok(bitcoin.includes(id), "about Bitcoin");
+  for (const id of [english, pact]) assert.ok(!bitcoin.includes(id), "only mentions Bitcoin");
+  const sec = await members("sec");
+  assert.ok(sec.includes(adjacent), "SEC next to Chinese text");
+  assert.ok(!sec.includes(metadata), "Security is not SEC");
+  assert.ok((await members("derivatives")).includes(agent), "a technical direction takes its tag");
 
   // The article page names the topics it belongs to.
   const topicsOf = async (id: string) => {
     const res = await app.inject({ method: "GET", url: `/api/site/items/${id}` });
     return (JSON.parse(res.body) as { topics: Array<{ slug: string }> }).topics.map((t) => t.slug);
   };
-  assert.deepEqual(await topicsOf(about), ["anthropic", "model-releases"]);
-  assert.deepEqual(await topicsOf(subpoena), ["openai", "model-releases"]);
-  assert.deepEqual(await topicsOf(pact), ["model-releases"]);
-  assert.deepEqual(await topicsOf(agent), ["agent", "model-releases"]);
+  assert.deepEqual(await topicsOf(about), ["ethereum", "mechanisms"]);
+  assert.deepEqual(await topicsOf(subpoena), ["bitcoin", "mechanisms"]);
+  assert.deepEqual(await topicsOf(pact), ["mechanisms"]);
+  assert.deepEqual(await topicsOf(agent), ["derivatives", "mechanisms"]);
 });
 
 test("renaming a company topic keeps its old full name usable for search", async () => {
-  const id = await report({at: hoursAgo(2), title: `Kimi 新模型上线 ${T}`, subjects: ['kimi'], selected: false});
-  for (const query of ['Kimi / 月之暗面', '月之暗面 / Kimi']) {
+  const id = await report({at: hoursAgo(2), title: `Strategy 增持比特币 ${T}`, subjects: ['strategy'], selected: false});
+  for (const query of ['MicroStrategy', 'Strategy / MSTR']) {
     const res = await app.inject({method: 'GET', url: `/api/site/pool?q=${encodeURIComponent(query)}`});
     assert.equal(res.statusCode, 200);
     assert.ok(ids(JSON.parse(res.body).items).includes(id), 'full company names must still find subject-tagged reports');
@@ -134,29 +134,29 @@ test("renaming a company topic keeps its old full name usable for search", async
 });
 
 test("a story page names the topics of its reports", async () => {
-  const launch = await story(`智能体框架 V2 发布 ${T}`);
-  await report({ source: OFFICIAL, at: hoursAgo(26), title: `智能体框架 V2 发布 ${T}`, tags: ["Agent"], fact: await fact(launch.id, "发布 V2") });
-  assert.deepEqual(await topicsOfStory(launch.id), [{ slug: "agent", name: "Agent 智能体" }, { slug: "model-releases", name: "模型发布" }]);
+  const launch = await story(`永续合约保证金规则 V2 发布 ${T}`);
+  await report({ source: OFFICIAL, at: hoursAgo(26), title: `永续合约保证金规则 V2 发布 ${T}`, tags: ["衍生品"], fact: await fact(launch.id, "发布 V2") });
+  assert.deepEqual(await topicsOfStory(launch.id), [{ slug: "derivatives", name: "衍生品" }, { slug: "mechanisms", name: "机制与规则" }]);
 });
 
 test("withdrawn articles stay out of lists and counts", async () => {
-  const kept = await report({ at: hoursAgo(5), title: `Kimi 发布新模型 ${T}`, subjects: ["kimi"] });
-  const withdrawn = await report({ at: hoursAgo(4), title: `Kimi 撤回的消息 ${T}`, subjects: ["kimi"] });
+  const kept = await report({ at: hoursAgo(5), title: `腾讯控股公布回购 ${T}`, subjects: ["tencent"] });
+  const withdrawn = await report({ at: hoursAgo(4), title: `腾讯控股撤回的消息 ${T}`, subjects: ["tencent"] });
   await sql`UPDATE publications SET visibility = 'withdrawn' WHERE article_id = ${withdrawn}`;
 
-  const data = await page("kimi");
+  const data = await page("tencent");
   assert.deepEqual(ids(data.items), [kept]);
   assert.equal(data.topic.total, 1);
-  const summary = (await listTopicSummaries()).topics.find((t) => t.slug === "kimi")!;
-  assert.equal(summary.latest?.title, `Kimi 发布新模型 ${T}`, "the index shows the newest public article");
+  const summary = (await listTopicSummaries()).topics.find((t) => t.slug === "tencent")!;
+  assert.equal(summary.latest?.title, `腾讯控股公布回购 ${T}`, "the index shows the newest public article");
 });
 
 test("every topic has a page; unknown topics and pages past the end have none", async () => {
-  const empty = await page("cursor");
+  const empty = await page("cftc");
   assert.equal(empty.topic.indexable, false, "a topic without content is not indexed");
   assert.deepEqual(empty.items, []);
   assert.equal(await loadTopicPage("not-a-topic", 1, new Date()), null);
-  assert.equal(await loadTopicPage("cursor", 2, new Date()), null);
+  assert.equal(await loadTopicPage("cftc", 2, new Date()), null);
   const index = await app.inject({ method: "GET", url: "/api/site/topics" });
   const body = JSON.parse(index.body) as { groups: Array<{ key: string }>; topics: Array<{ slug: string }> };
   assert.deepEqual(body.groups.map((g) => g.key), ["company", "field", "genre"]);
