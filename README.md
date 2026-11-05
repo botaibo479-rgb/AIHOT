@@ -1,187 +1,373 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.png">
-    <img src="docs/assets/banner-light.png" alt="AIHOT：每个行业，都可以有自己的 AIHOT。很多条信源流进中间的精选，再分给法律、人力资源、金融等各个行业" width="100%">
-  </picture>
-</p>
+# Hubble：以加密为主的个人跨市场研究工具
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-176b75?style=flat-square" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/Node.js-24-176b75?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 24">
-  <img src="https://img.shields.io/badge/PostgreSQL-17-176b75?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 17">
-  <img src="https://img.shields.io/badge/Docker-Compose-176b75?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose">
-  <a href="https://aihot.news"><img src="https://img.shields.io/badge/%E7%BA%BF%E4%B8%8A%E5%8E%9F%E7%AB%99-aihot.news-202a30?style=flat-square" alt="线上原站 aihot.news"></a>
-</p>
+Hubble 是基于开源框架 [AIHOT](https://github.com/KKKKhazix/AIHOT) 做的行业迁移。框架原本是 AI 行业热点站，这里改成了个人投资研究工具：以加密为主，同时覆盖美股和港股、黄金和原油、外汇、宏观。
 
-<p align="center">
-  <b>一个自己找热点、自己写日报的网站框架。</b><br>
-  把信源换成你的，把精选标准换成你的 KnowHow，它就是你的行业热点站。
-</p>
+它不做财经新闻聚合。新闻只当线索和证据，每天的主要产出是：
 
-<p align="center">
-  <b>简体中文</b> · <a href="README.en.md">English</a>
-</p>
+- **具体标的**：现价、涨跌和异动，每个数都带数据来源和时间；
+- **未来事件日历**：正式日程、暂定安排、研究推测三类分开列，不给概率；
+- **候选卡**：资本权、叙事权、规则权三类证据，每条都注明出处；写明缺口、触发条件、失效条件和观察期；
+- **判断档案**：只追加、不覆盖，每天按价格核对条件，判断结束时自动复盘，并统计命中率。
 
-<p align="center">
-  <a href="#跑起来">跑起来</a> ·
-  <a href="docs/customize.md">改成你的行业</a> ·
-  <a href="#它是怎么工作的">它是怎么工作的</a> ·
-  <a href="#文档">文档</a> ·
-  <a href="https://github.com/KKKKhazix/AIHOT/discussions">社区交流</a>
-</p>
+所有内容都可以通过网页、JSON 接口、MCP 和给 Agent 读的 Markdown 读取。
 
-<br>
+> 这份 README 是交接文档，写给接手完善和优化的人或 Agent。框架原来的说明保留在 [README.framework.md](README.framework.md)（英文版 [README.en.md](README.en.md)）。
+> 动手之前，请先读 [AGENTS.md](AGENTS.md)：它是这个仓库的硬性规则，下面“必须守住的规则”一节摘了要点。
 
-## 这是什么
+---
 
-[AIHOT](https://aihot.news) 是我做的一个 AI 热点网站。它每天从一批信源里收资料，用大模型先筛一遍、再独立打两次分，挑出真正值得看的，写成中文标题和摘要；把不同来源说的同一件事聚成一个事件，按有多少人在说排出热点；每天早上出一份日报。
+## 目录
 
-这个仓库是它的引擎和框架：网站、后台、精选流程、聚簇和热度算法，**所有提示词的原文和入选门槛**，都在这里。
+1. [现在的状态](#现在的状态)
+2. [它是怎么工作的](#它是怎么工作的)
+3. [目录结构与改动范围](#目录结构与改动范围)
+4. [研究模块详解](#研究模块详解)
+5. [对外接口一览](#对外接口一览)
+6. [配置与密钥](#配置与密钥)
+7. [本地开发与测试](#本地开发与测试)
+8. [部署](#部署)
+9. [必须守住的规则](#必须守住的规则)
+10. [已知问题与待办](#已知问题与待办)
+11. [文档索引](#文档索引)
 
-## 为什么开源
+---
 
-这半年，很多做法律、做 HR、做金融、做贵金属的朋友问我，能不能也给他们的行业做一个。
+## 现在的状态
 
-我做不了。我不懂你们的行业，不知道哪些信源有用，也不知道什么样的消息，对你们来说才叫热点。
+| 项目 | 状态 |
+|---|---|
+| 基础 | AIHOT 引擎，上游提交 `cd424b0`。引擎代码基本没动，只改了两处写死的示例文字 |
+| 开发分支 | `claude/eager-sagan-xgna6p`（仓库 `botaibo479-rgb/AIHOT`） |
+| 第 1 步：行业迁移 | 完成：站名 Hubble、分类、标的名录、主题、提示词、首批信源、门槛类别、用词表 |
+| 第 2 步：行情与观察清单 | 完成：`modules/research`。加密、美股和 ETF、FRED 宏观行情；观察清单按报道聚合程度自动提名，由站长确认；筛选标记 |
+| 第 3 步：事件日历 | 完成：官方日程表，加上模型从公开报道里抽出的未来事件；三类事件分开列 |
+| 第 4 步：研究简报与判断档案 | 完成：每天的候选卡；判断档案只追加；每日按价格核对条件；结束时自动复盘 |
+| 第 5 步（部分） | 完成：命中率统计；Deribit DVOL、DefiLlama 稳定币供应、CFTC 期货持仓、EIA 原油库存四个数据源 |
+| 第 5 步其余 | 未做：港股行情、ETF 资金流、代币解锁数据、飞书推送简报。都要站长先准备账号、申请或推送地址 |
+| 测试 | `npm run typecheck` 通过；后端测试 1057 项全部通过（研究模块 14 项）；网页构建通过；`scripts/smoke.ts`、`scripts/mcp-check.ts` 通过 |
+| **没有在真实网络上验证过的** | 所有外部接口（交易所、FRED、Twelve Data、Deribit、DefiLlama、CFTC、EIA，以及 20 个信源地址）。开发环境连不上外网，只用本地假服务测过。模型的实际输出质量（事件抽取、候选卡）也还没在真实数据上看过 |
 
-但你们懂。
+站点身份：站名 **Hubble**，行业词“投研”，MCP 工具名前缀 `hubble`。前缀上线后不要再改。计划部署在**香港服务器**、**私有访问**（建议用 Tailscale），模型用 **DeepSeek**。
 
-既然我没办法满足所有人，那就把火种交到大家自己手上。
-
-## 说在前面
-
-- **我不是专业的开发者。** 我是设计师出身，半年前还看不太懂代码。这套代码是我和 AI 一起重写的，比以前干净了很多，但一定还有写得不好的地方。发现问题欢迎提 Issue，我不一定能很快回复，先说声抱歉。
-- **这是 AIHOT 的引擎。** 它和 AIHOT 线上跑的是同一份引擎代码，同步时直接从线上导出，不是精心打磨的通用框架。以后 AIHOT 的更新，我会尽量同步过来，但没法保证每一次都同步。模型榜、Codex 重置监控、主题页的大事记这些只对 AI 行业有意义的功能，可安装的 Agent Skill 文件，以及 AIHOT 自己的运营工具，只留在 AIHOT 上；开源版给 Agent 的入口是 MCP 和站点上的 `/agent` 页面。
-- **里面没有 AIHOT 的信源名单和运营数据。** 仓库带了 18 个公开的海外 AI 资讯源做示范，够你跑起来看效果；真正的信源，要换成你自己行业的。
-- **请不要用 AIHOT 的名字和 Logo。** 换上你自己的名字，它就是你的站。
+---
 
 ## 它是怎么工作的
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-dark.png">
-  <img src="docs/assets/how-light.png" alt="六步：采集、预筛、两次评分、写作、聚簇、热点与成刊" width="100%">
-</picture>
+```
+信源（RSS / 网页 / JSON / X / 公众号 / 外部推送）
+   │  引擎：采集 → 判重 → 预筛 → 两次评分 → 结构化（事实 + 原文证据句）→ 写标题摘要
+   │        → 事件归组 → 热度（独立来源计数）→ 精选 → 日报（规则编排）、周报月报
+   ▼
+公开读取层 packages/backend/src/publication/
+   │
+   ├─ 网页、RSS、/api/v1、/api/v1/agent、MCP /api/mcp（引擎原有）
+   │
+   └─ 研究模块 modules/research（只读引擎的公开数据，自己的数据存在自己的表里）
+        ├─ 行情：交易所公开接口、Twelve Data、FRED、Deribit、DefiLlama、CFTC、EIA
+        ├─ 观察清单：按报道的独立来源数自动提名 → 站长确认或放弃
+        ├─ 事件日历：calendar.json（官方日程）+ 模型从报道里抽未来事件 + 站长记的
+        ├─ 研究简报：核对已有判断 → 挑标的 → 写候选卡 → 合格的开立判断
+        ├─ 判断档案：只追加修订；每天核对价格条件；结束时复盘
+        └─ 复盘：命中率、相对 BTC/SPY 的表现
+```
 
-一条资料从信源进来，先判重，再预筛；可能重要的独立打两次分，写好中文标题和摘要，和别的报道聚成事件，算进热度。X 帖子没有正文或只有链接时，保留原帖的链接和图片，不调用写作或翻译模型。分数过了门槛、又不是精选里已有新闻的重复，才进精选；日报按规则编出当天要闻，周报、月报再从日报里汇编。每一步的提示词都在 [`industry/prompts/`](industry/prompts/)，改标准不用改代码。详见 [精选与校准](docs/selection.md)。
+**“投机市场循环”和“三权”在代码里怎么落地**（详细设计见 [docs/research-plan.md](docs/research-plan.md)）：
 
-### 聚簇与热点
+- **资金 → 波动 → 注意力 → 参与**：落成按固定阈值计算的筛选标记，不当因果：
+  - 资金异动：未平仓量、资金费率、成交额；
+  - 资金先动，讨论未扩散；
+  - 传播在扩散；
+  - 传播扩散，价格未明显反应。
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cluster-dark.png">
-  <img src="docs/assets/cluster-light.png" alt="五个来源的报道聚成一个事件，事件进入当前热点榜" width="100%">
-</picture>
+  隐含波动率（DVOL）作为背景序列给候选卡参考。
+- **资本权**：行情、衍生品和持仓指标，加上报道里有出处的资金数据。
+- **叙事权**：引擎的归组和热度：独立来源数、变化、来源层级。
+- **规则权**：结构化事实的原文证据句和前提条件，加上事件日历。
+- **硬规则**：大额转账不等于买卖，不估“主力成本”，不写概率、共识或目标价。写在提示词里，代码再过滤一遍。
 
-同一件事，官网发一篇、媒体转十篇、X 上吵一天，读者只需要看到一次。AIHOT 把它们聚成一个**事件**：先用标题摘要的向量（没配向量服务时比文字重合度）在最近两周里找候选，再让模型判断是同一件事、后续进展，还是两件事；拿不准的合并，写入前再让模型复核一遍（复核可以单独换一家模型，设 `GROUP_REVIEW_MODEL`）。
+---
 
-**热度**按事件算，不按文章算：48 小时内，每个独立来源只算一次，24 小时减半。重复抓取不会多算，一家媒体发十篇也只算一次，所以排在前面的，是真正有很多人在说的事。
+## 目录结构与改动范围
 
-### 速度
+```
+AGENTS.md / CLAUDE.md        仓库规则（必读）
+README.md                    本文件（Hubble 交接文档）
+README.framework.md          AIHOT 框架原说明
+apps/                        引擎：api（Fastify）、worker（pg-boss 任务）、web（React Router SSR）
+packages/                    引擎：backend（业务代码）、contracts（共享类型）
+database/migrations/         引擎的迁移
+site/                        这个站自己的：站名文案（site.ts）、模型（models.ts）、品牌、条款页、public/、模块清单
+industry/                    行业包：分类与名录（taxonomy.ts）、主题（topics.json）、信源（sources.json）、
+                             提示词（prompts/）、门槛（selection.ts）、用词表（wording.ts）
+modules/research/            研究模块（第 2–5 步的全部新功能）
+docs/
+  research-plan.md           执行方案：仓库理解、迁移、框架落地、数据与成本、实施步骤、示例输出
+  hubble-setup-checklist.md  上线准备清单：服务器、模型、各类 key、开关、要站长做的决定
+  customize.md / selection.md / sources.md / grouping.md / deploy.md / architecture.md   框架文档
+scripts/                     初始化、迁移、种子、评测、smoke、mcp-check
+tests/                       引擎测试（示例分类、标签、公司已换成新行业的）
+```
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/perf-dark.png">
-  <img src="docs/assets/perf-light.png" alt="AIHOT 线上实测：页面中位数 10 毫秒，95% 在 50 毫秒内；接口中位数 6 毫秒，95% 在 12 毫秒内；文章页 95% 在 14 毫秒内" width="100%">
-</picture>
+### 相对上游改了哪些
 
-## 你会得到什么
-
-| | |
+| 位置 | 改动 |
 |---|---|
-| **六种信源** | RSS、网页列表、JSON 接口、X 账号、微信公众号，以及你自己脚本推送进来的内容。信源分三级（官方一手、官方账号与准官方、媒体与个人），各级入选门槛不同；抓取频率按产出自动调整 |
-| **精选** | 预筛，同一份评分标准独立打两次分，再按信源分级的门槛决定入选；同一条新闻只占一条，换个说法的重复不进。提示词和门槛全部公开，全部可以改；用你自己标注的样本在 SelectBench 里校准 |
-| **写作** | 中文标题、答案先行的摘要、推荐理由，外文全文翻译；分类、标签和新闻事实单独抽取；防止模型把原文没提到的公司写进标题 |
-| **聚簇** | 不同来源报道的同一件事聚成一个事件，后续进展挂在同一个事件下，事件页有综述；进展和报道时间线可一起切换“最新在前”或“最早在前”；人工改过的归属不会被覆盖 |
-| **热点** | 按事件算热度：独立来源越多越靠前，X 上的讨论也算进来；和 6 小时前比，涨得快的标上升，新出现的标“新” |
-| **日报、周报、月报** | 每天出日报（默认 08:00），按规则编出当天要闻：一件事一条，报过的事只在有新进展时跟进，不调模型。每周一出周报、每月 1 日出月报（默认 10:00、10:30），从日报里汇编，模型只写总述和栏目导读。几点出刊在 `site/site.ts` 的 `EDITION_TIMES` 里改 |
-| **主题与搜索** | 公司、方向、内容形态三类主题页；标题摘要搜索和全文相关搜索 |
-| **阅读设置** | 深浅色外观、网站默认字体或浏览器默认字体；收藏和阅读设置只保存在本机，可以导出、导入备份 |
-| **给 Agent 用** | RSS（精选、全部、全文、日报、周报、月报）、公开 API、MCP、Agent Markdown、`llms.txt`，同一份内容给人看也给 Agent 用 |
-| **后台** | 信源管理与试抓、内容诊断与人工评分更正、精选评测、每一步单独换模型、付费服务的预算熔断、运行记录与告警 |
+| `site/site.ts` | 站名 Hubble、行业词“投研”、`mcpPrefix: "hubble"`、首页、关于页、Agent 页文案、`crawlerName` |
+| `site/public/robots.txt` | 改为禁止收录（私有站） |
+| `site/changelog.json`、`site/brand/nameplates/` | 上线公告；报头字按新行业词重新生成 |
+| `site/modules/*.ts`、`site/package.json`、`Dockerfile` | 挂上研究模块 |
+| `industry/taxonomy.ts` | 分类 `crypto`、`equities`、`commodities`、`fx`、`macro`、`research`（key 上线后不改）；首个标签按证据形态分；28 个标的与机构；`ITEM_TYPES` 换成投研的 7 类；`RELEASE = null` |
+| `industry/topics.json` | 三组主题：标的与主体、研究方向、证据形态 |
+| `industry/sources.json` | 首批 20 个信源：美联储、SEC、CFTC、BLS、ECB、EIA、以太坊基金会、币安和 OKX 公告、主要加密与财经媒体 |
+| `industry/prompts/` | 预筛、评分（保留五维加权和噪声压制）、结构化、写作和标题规则、术语表全部改写；新增 `research-catalyst.md`（事件抽取）和 `research-card.md`（候选卡） |
+| `industry/selection.ts`、`industry/wording.ts` | 门槛类别换成 `routine`（例行公告），门槛数字没改；用词表压住喊单和夸张词 |
+| `.env.example` | 新增 `TWELVEDATA_API_KEY`、`FRED_API_KEY`、`EIA_API_KEY`；模型步骤里加上 `CATALYST_MODEL`、`RESEARCH_MODEL` |
+| `scripts/mcp-check.ts`、`apps/web/app/routes/admin/source-new.tsx` | 两处写死的 AI 示例文字 |
+| `tests/` | 约 40 个测试文件里的示例分类、标签、公司换成新行业的，测的规则没变 |
 
-## 看一眼
+---
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/shots-dark.png">
-  <img src="docs/assets/shots-light.png" alt="首页的每日精选，关于页的信源河" width="100%">
-</picture>
+## 研究模块详解
 
-<p align="center"><sub>截图来自用示范信源跑起来的本地站，站名是默认的 MyHOT。</sub></p>
+模块说明在 [modules/research/README.md](modules/research/README.md)，下面是概览。
 
-## 跑起来
+### 文件
 
-想创建自己的独立站点，可以先点 [Use this template](https://github.com/KKKKhazix/AIHOT/generate)，再克隆你生成的仓库。想持续合并上游更新或贡献代码，建议先 Fork。下面的命令适合直接试用。
+| 文件 | 内容 |
+|---|---|
+| `module.ts` | 页面地址：`/brief`、`/watchlist`、`/calendar`、`/theses`；API 前缀 `/api/research/` |
+| `server.ts` | 后端插口：HTTP 路由、定时任务、模型步骤、MCP 能力、主题页部件、告警、清理 |
+| `web.tsx` | 网页插口：侧栏“研究”分组、“我的”页入口、主题页上的行情卡片 |
+| `contract.ts` | 前后端共用的类型和格式化函数 |
+| `instruments.json` | 标的目录（37 个）：数据源和代码、所属实体、`candidate` 或 `context` 角色；提名门槛；筛选阈值 |
+| `calendar.json` | 官方日程：FOMC（2026-12 正式、2027 全年暂定）、BLS 非农、CPI、PPI。每年手录一次 |
+| `backend/catalog.ts` | 读取并校验目录（写错就启动失败） |
+| `backend/sources.ts` | 数据源适配器：Binance、OKX、FRED、Twelve Data、Deribit、DefiLlama、CFTC、EIA |
+| `backend/collect.ts` | 加密快照、日线采集、快照清理 |
+| `backend/read.ts` | 标的视图：价格、1 日和 7 日变化、波动率、成交额比、永续合约指标、报道热度、筛选标记、未来事件 |
+| `backend/watch.ts` | 观察清单的自动提名和站长决定 |
+| `backend/events.ts` | 日历同步、从报道抽事件（逐字引句校验、合并同一事件）、站长事件、撤下、列表 |
+| `backend/cards.ts` | 候选卡的输入（每个事实都编号）和输出校验（引用、`grounded()`、禁用词、价位范围、降级为线索） |
+| `backend/theses.ts` | 判断档案：开立、追加修订、每日核对（接近触发、已触发、已失效、到期）、复盘 |
+| `backend/brief.ts` | 每日研究简报的生成（每个日期只写一次） |
+| `backend/review.ts` | 命中率复盘统计 |
+| `backend/markdown.ts` | 给 MCP 和 Agent 的 Markdown 回答 |
+| `web/*.tsx` | 页面和部件：简报、观察清单、日历、判断档案、行情卡片、候选卡、复盘表 |
+| `migrations/0200–0207` | 模块自己的 8 张表（见下） |
+| `tests/` | `research.test.ts`（行情、观察清单、接口）、`events.test.ts`（日历）、`brief.test.ts`（候选卡、判断、复盘） |
 
-需要 [Docker](https://docs.docker.com/get-started/get-docker/)、[Node.js 24](https://nodejs.org/en/download)（运行 `init-env` 生成配置要用），和一个 OpenAI 兼容的模型 API Key（DeepSeek、千问、智谱都可以）。
+### 数据表（模块自有，引擎表只读）
 
-`init-env` 默认按 DeepSeek 配置。用千问、智谱等别家，照 `.env.example` 里的例子改 `.env` 的 `LLM_BASE_URL`、`LLM_MODEL` 和 `LLM_EXTRA_JSON`；用推理模型（先想再答）时，还要设 `LLM_REASONING_TOKENS` 给推理留出输出额度。
+| 表 | 内容 |
+|---|---|
+| `research_quotes` | 加密快照：价格、资金费率、未平仓量、标记价、指数价。保留 30 天 |
+| `research_daily` | 日值和周值：收盘价、成交额、未平仓量。永久保留 |
+| `research_watch` | 观察清单状态：已提名、观察中、已放弃 |
+| `research_events` | 事件：来源（日历、报道、站长）、确认等级、日期精度、原文引句、出处报道、撤下记录 |
+| `research_article_scans` | 每篇报道的每个版本只读一次的记账 |
+| `research_theses` / `research_thesis_revisions` | 判断，以及只追加的修订（开立、更新、状态、复盘、笔记） |
+| `research_briefs` | 每日研究简报（每个日期一行，写好后不改） |
+
+### 定时任务（北京时间，在 worker 里跑）
+
+| 任务 | 时间 | 内容 | 受哪个开关控制 |
+|---|---|---|---|
+| `research.snapshots` | 每 15 分钟 | 加密快照（还没有日线的标的顺带补齐） | `COLLECT_ENABLED` |
+| `research.daily` | 每天 08:12 | 全部日线和周线序列 | `COLLECT_ENABLED` |
+| `research.nominate` | 每天 08:25 | 72 小时内 ≥ 3 个独立来源报道的标的自动提名 | — |
+| `research.events` | 每小时 07、37 分 | 同步 calendar.json；从最近 3 天的精选和高分报道里抽未来事件 | `MODEL_CALLS_ENABLED` |
+| `research.brief` | 每天 08:45 | 核对判断 → 写最多 8 张候选卡 → 生成研究简报（周一附上周复盘） | `MODEL_CALLS_ENABLED`（模型不可用时照常生成，只是没有候选卡） |
+
+### 模型步骤（在后台“模型与评测”页可以单独换模型）
+
+| 步骤 | 环境变量 | 提示词 |
+|---|---|---|
+| 研究：从报道里抽未来事件 | `CATALYST_MODEL` | `industry/prompts/research-catalyst.md` |
+| 研究：候选卡（研究简报） | `RESEARCH_MODEL` | `industry/prompts/research-card.md` |
+
+两步都走引擎的 `chatJson`：有回执、预算熔断，受 `MODEL_CALLS_ENABLED` 控制。
+
+---
+
+## 对外接口一览
+
+公开读取都是**匿名只读**，所以站点要私有部署；写操作都要 `Authorization: Bearer $INGEST_TOKEN`。
+
+### 网页
+
+`/`、`/all`、`/hot`、`/daily`、`/topics` 是引擎原有页面，作为证据层。`/brief`（研究简报）、`/watchlist`（观察清单）、`/calendar`（事件日历）、`/theses`（判断档案与复盘）是研究模块的页面。标的主题页 `/topics/<实体>` 顶部会显示行情卡片和未来事件。
+
+### MCP（`/api/mcp`，工具名前缀 `hubble_`）
+
+| 工具 | 来源 | 内容 |
+|---|---|---|
+| `hubble_get_latest`、`hubble_search`、`hubble_get_hot_topics`、`hubble_get_story`、`hubble_get_daily`、`hubble_get_weekly`、`hubble_get_monthly` | 引擎 | 精选、搜索、热点、事件、日报、周报、月报 |
+| `hubble_get_instrument` | 研究模块 | 不带参数：观察清单和市场背景；带 `symbol`：单个标的 |
+| `hubble_list_events` | 研究模块 | 未来事件（`days`、`instrument`） |
+| `hubble_get_brief` | 研究模块 | 研究简报（`date`） |
+| `hubble_get_thesis` | 研究模块 | 不带参数：进行中的判断；带 `id`：全部修订 |
+| `hubble_get_review` | 研究模块 | 命中率复盘（`days` 取 7、30、90 或 all） |
+
+接入方式：`claude mcp add --transport http hubble <SITE_URL>/api/mcp`，或者打开站点的 `/agent` 页复制。只能读网页的 Agent 从 `/api/v1/agent` 开始读。
+
+### 研究模块的 JSON
+
+| 方法 | 地址 | 说明 |
+|---|---|---|
+| GET | `/api/research/instruments`、`/api/research/instruments/<id 或代码>` | 标的与行情（单个标的含最近 30 个日值） |
+| GET | `/api/research/events?days=21&instrument=sol` | 事件日历 |
+| GET | `/api/research/briefs/latest`、`/api/research/briefs/<YYYY-MM-DD>` | 研究简报 |
+| GET | `/api/research/theses?status=open\|ended\|all`、`/api/research/theses/<id>` | 判断档案 |
+| GET | `/api/research/review?days=7\|30\|90\|all` | 命中率复盘 |
+| POST（令牌） | `/api/research/watch/<id>` | `{"state":"watching"\|"dropped","reason":"…"}` |
+| POST（令牌） | `/api/research/events` | 站长添加事件 |
+| POST（令牌） | `/api/research/events/<id>/withdraw` | `{"reason":"…"}` 撤下读错的事件（保留记录） |
+| POST（令牌） | `/api/research/theses` | 站长开立判断 |
+| POST（令牌） | `/api/research/theses/<id>/revisions` | `{"kind":"note"\|"status","status":…,"reason":"…"}` |
+
+---
+
+## 配置与密钥
+
+完整清单在 [docs/hubble-setup-checklist.md](docs/hubble-setup-checklist.md)。要点如下：
+
+- **自动生成**：`node scripts/init-env.ts --llm-key <DeepSeek Key>` 会生成 `.env`，并填好 `ADMIN_PASSWORD`、`SESSION_SECRET`、`IMG_PROXY_SIGN_SECRET`、`POSTGRES_PASSWORD`。
+- **必须自己填**：
+  - `LLM_API_KEY`（DeepSeek）
+  - `FRED_API_KEY`、`TWELVEDATA_API_KEY`、`EIA_API_KEY`（都免费）
+  - `INGEST_TOKEN`：**init-env 不会生成**，用 `openssl rand -hex 24` 生成
+  - `SITE_URL`
+  - `COLLECT_ENABLED=true`、`MODEL_CALLS_ENABLED=true`
+- **建议**：`DASHSCOPE_API_KEY` 或其他向量服务（DeepSeek 没有向量接口，没有它事件归组会偏弱）；`site.ts` 的 `crawlerName` 里加上联系邮箱（SEC、BLS 要求）；自建 RSSHub，用来抓中文信源。
+- **可选**：`SOCIALDATA_API_KEY`、`DAJIALA_KEY`、`JINA_API_KEY`、飞书告警、数据库备份。
+
+`.env`、密钥和 `.data/` 都不要提交。
+
+---
+
+## 本地开发与测试
+
+需要 **Node.js 24**（`package.json` 要求 ≥ 24.22.1）和 **PostgreSQL 16 或 17**。数据库账号要有建库权限。
 
 ```bash
-git clone https://github.com/KKKKhazix/AIHOT.git myhot
-cd myhot
-node scripts/init-env.ts --llm-key <你的模型 API Key>
+npm ci
+npm run typecheck
+DATABASE_URL=postgres://<用户>:<密码>@127.0.0.1:5432/hubble_test npm test   # 库名必须以 _test 或 _ci 结尾，会自动建库和迁移
+npm run build -w @aihot/web && npm run test:web                               # 浏览器测试需要 Playwright 对应版本的 Chromium 和 WebKit
+```
+
+只跑研究模块的测试：
+
+```bash
+DATABASE_URL=postgres://…/hubble_test node --test-global-setup=tests/databases.ts --import ./tests/databases.ts --test modules/research/tests/*.test.ts
+```
+
+本地起站：先准备 `.env`（保持 `COLLECT_ENABLED=false`、`MODEL_CALLS_ENABLED=false`），再运行：
+
+```bash
+node --env-file=.env scripts/migrate.ts && node --env-file=.env scripts/seed.ts
+NODE_ENV=production node --env-file=.env apps/api/src/main.ts                 # 3001
+cd apps/web && NODE_ENV=production node --env-file=../../.env server.ts       # 3000
+node scripts/smoke.ts --base http://localhost:3000
+node scripts/mcp-check.ts
+```
+
+测试说明：
+
+- 测试不访问任何外部服务。数据源和模型都由本地假服务代替：研究模块测试里，数据源地址通过 `backend/sources.ts` 的 `ENDPOINTS` 指向本地，模型用 `tests/setup.ts` 的 `stub()`。
+- 浏览器测试在开发环境里有 13 项失败，原因是缺 WebKit、Chromium 版本不匹配。没改动的上游代码失败的也是同样这 13 项，所以和这次改动无关。
+
+---
+
+## 部署
+
+按 [docs/deploy.md](docs/deploy.md) 的“用 Docker”一节部署：
+
+```bash
 docker compose up -d --build
 ```
 
-打开 <http://localhost:3000>。后台在 `/admin`，管理员密码在 `.env` 的 `ADMIN_PASSWORD` 里。一两分钟后开始有内容，第一次导入的资料大约半小时处理完。
+服务器建议至少 2 核 4 GB，磁盘 40 GB 以上。部署后按这个顺序检查：
 
-机器上没有 Node、服务器在中国大陆、要配域名和 HTTPS，或者不用 Docker、直接在 Linux、macOS 上跑（Windows 用 WSL2），见 [部署](docs/deploy.md)。
+1. 后台“信源”页：逐个“预览抓取” 20 个信源。
+2. 后台“运行”页：看 `research.snapshots` 和 `research.daily` 的结果。Binance 不通就把 `instruments.json` 里加密标的的数据源改成 `okx`，symbol 写成 `BTC-USDT`。
+3. 打开 `/brief`、`/calendar`、`/watchlist`、`/theses` 看一眼。
+4. 用 `/agent` 页给的命令接上 MCP。
 
-站点跑起来后，打开 `/agent` 可以复制 MCP、RSS 或 API 的接入方式；只能读网页的 Agent 从 `/api/v1/agent` 开始；接口说明在 `/openapi-v1.json`。
+---
 
-## 把它改成你的行业
+## 必须守住的规则
 
-最省事的办法：打开你的 Agent（Claude Code、Codex 都可以），把这个仓库交给它，然后说：
+摘自 [AGENTS.md](AGENTS.md)，改之前务必读全文：
 
-```text
-请读 AGENTS.md 和 docs/customize.md，把这个站改成「XX 行业」的热点站。
-我关心的是：……（写你想盯的信源、你觉得什么消息重要、什么不重要，越具体越好）。
-改完帮我跑 npm run typecheck、npm test 和 node scripts/smoke.ts，并告诉我还需要我自己决定哪些事。
-```
+- **前端只通过 HTTP 读后端**：数据库、模型调用和密钥只在后端。研究模块的网页代码（`web/`、`web.tsx`）不能导入后端代码，架构测试会检查。
+- **公开出口只从 `packages/backend/src/publication/` 读**：模块读引擎数据时用 `publication/scope.ts` 的条件（例如 `listedCondition`）。
+- **模块不写引擎的表**：`publications`、`receipts`、`facts`、`stories` 等，架构测试会检查。模块只写自己的 `research_*` 表；模块之间不互相导入。
+- **读者打开页面不调模型**：模型只在 worker 的任务里调。
+- **付费请求都走回执和预算熔断**：模型调用用 `chatJson`。研究模块调用的行情接口都是免费的，所以直接用 `guardedFetch`。
+- **安全阀**：`COLLECT_ENABLED`、`MODEL_CALLS_ENABLED`、`FEISHU_*_ENABLED`、`INDEXNOW_SUBMIT_ENABLED` 只有设成 `true` 才打开，开发时保持关闭。
+- **数据库迁移**：放在 `modules/research/migrations/`；每个文件只放一条语句；已发布的迁移不改。迁移安全检查会拒绝 `CREATE TABLE … AS` 这类写法，连 `GENERATED … AS IDENTITY` 也会因为里面的 `AS` 被拒，所以自增 id 用 `bigserial`。索引要用 `CREATE INDEX CONCURRENTLY IF NOT EXISTS`。
+- **数据库里的每一列都要有代码在用**：架构测试会检查。
+- **代码读到的环境变量都要写进 `.env.example`**：架构测试会检查。
+- **停用一个功能时一起删干净**：代码、测试、文档和存下的状态（表、定时任务、环境变量）。
+- **新增导航入口**：要在浏览器里分别核对电脑侧栏、手机底栏、返回按钮和“我的”页。
+- **不用 AIHOT 的名字和 Logo**。
+- **研究内容的底线**：不写价格预测、概率、“市场共识”“已定价”、目标价；大额转账不等于买卖；只有叙事信号的不能升级为候选；判断修订只追加不覆盖。
 
-要改的东西几乎都在 [`site/`](site/) 和 [`industry/`](industry/) 这两个文件夹里，代码基本不用动：
+---
 
-| 文件 | 改什么 |
-|---|---|
-| `site/site.ts` | 站名、行业词、出刊时间、首页文案、关于页、条目与日报周报月报上的说法、公开接口的分类 |
-| `industry/taxonomy.ts`、`industry/topics.json` | 分类、标签、主题 |
-| `industry/sources.json` | 首次启动时导入的信源 |
-| `industry/prompts/` | 精选标准和写作要求。**你的行业 KnowHow，就写在这里** |
-| `industry/selection.ts` | 入选门槛 |
-| `site/models.ts` | 每一步默认用哪个模型（不改也行：都用 `.env` 里配的那一个） |
-| `site/brand/`、`site/pages/`、`site/public/`、`site/changelog.json` | 图标与 Logo，使用规则和隐私说明，`robots.txt` 这类发布在网站根目录的文件，更新日志 |
-| `modules/` | 框架里没有、只有你的站要的功能，做成模块放在这里，见 [架构](docs/architecture.md#模块) 的“模块” |
+## 已知问题与待办
 
-最值得花时间的是评分标准（`industry/prompts/selection-score.md`）和门槛：拿一两百条你自己标注过的资料，用 `scripts/eval-selection.ts` 跑一遍，看它选得准不准，再回去改。怎么做写在 [精选与校准](docs/selection.md) 里。
+### 需要站长提供或决定的
 
-## 文档
+这些不是代码问题，但会影响能不能用，以及效果好坏：
+
+- 准备清单里的各项 key 和开关，特别是 `INGEST_TOKEN`。
+- 一个专用的联系邮箱，写进 `crawlerName`。
+- 是否自建 RSSHub，用来接中文快讯和深度稿（信源清单见 [docs/research-plan.md](docs/research-plan.md) 第 2 节）。
+- 条款页 `site/pages/terms.md`、`privacy.md` 还是框架模板。
+- 跑一到两周后标注 100–200 条样本，用 `scripts/eval-selection.ts` 校准 `industry/selection.ts` 的门槛（见 [docs/selection.md](docs/selection.md)）。门槛不能凭感觉改。
+- 第 5 步其余项要的账号：富途 OpenD（港股）、SoSoValue API 或 Farside 使用许可（ETF 资金流）、Tokenomist（代币解锁）、飞书 webhook（推送简报）。
+
+### 部署后需要验证或可能要修的
+
+- 所有外部接口都还没在真实网络上跑过：
+  - Binance 和 OKX 的现货、永续、K 线、未平仓量历史接口；
+  - FRED、Twelve Data、Deribit、DefiLlama；
+  - CFTC 的合约代码（BTC 133741、ETH 146021、黄金 088691、WTI 067651）；
+  - EIA 序列 `WCESTUS1`。
+
+  取不到数据的会写在任务结果里，要按实际返回改适配器。
+- 20 个信源的地址要逐个预览。币安和 OKX 公告用的是它们网站的 JSON 接口，格式可能变。
+- 两个模型步骤的提示词要用真实数据看效果，再迭代：事件抽取的准确率；候选卡是否太空、证据是否读错、条件是否具体。
+- `calendar.json` 只录到 2027 年 1 月的 BLS 数据和 2027 年的 FOMC，要每年更新。
+
+### 可以继续改进的方向
+
+在不违背上面规则的前提下：
+
+- 港股行情、ETF 资金流、代币解锁、飞书推送简报（第 5 步其余项）。
+- 观察清单目前只能提名 `instruments.json` 里有的标的。报道里频繁出现、但目录里没有的新币，还不能自动发现。
+- 判断档案的“更新”修订（`update`）在类型和表里都有，但研究简报目前不会给已有判断写更新卡，进行中判断的标的会直接跳过。如果要让模型定期更新证据，可以在 `brief.ts` 里加。
+- 筛选标记的阈值（`instruments.json` 的 `signals`）是初始值，应该参考复盘数据再调。
+- 命中率统计目前不区分触发条件的方向；需要的话，可以在开立时让卡片声明方向。
+
+---
+
+## 文档索引
 
 | 文档 | 内容 |
 |---|---|
-| [把它改成你的行业](docs/customize.md) | 站名、分类、主题、信源、提示词、门槛、模型、品牌，一步一步来 |
-| [信源](docs/sources.md) | 六种信源怎么配，分级和全文，抓取频率，旧文和存档，固定起点 `publishedAfter`，外部推送接口 |
-| [精选与校准](docs/selection.md) | 一条资料怎么变成精选、怎么编进日报周报月报，怎么用自己的样本校准 |
-| [事件归组与关系评测](docs/grouping.md) | 事件关系怎么判断，怎么用自己标注的成对样本评测 |
-| [综述评测](docs/story-digest-evaluation.md) | 改事件综述提示词前，怎么在同一批事件上并排比较 |
-| [部署](docs/deploy.md) | Docker、域名和 HTTPS、中国大陆、更新、备份、花多少钱，不用 Docker 时在 Linux、macOS（Windows 用 WSL2）上怎么跑 |
-| [架构](docs/architecture.md) | 三个进程、几条不变的规则、目录、模块、数据库迁移、对外出口、测试 |
-
-技术栈：Node.js 24 · TypeScript · React Router（服务端渲染）· Fastify · PostgreSQL · pg-boss · Tailwind CSS · Docker Compose。
-
-## 交流与贡献
-
-部署和使用问题到 [问答区](https://github.com/KKKKhazix/AIHOT/discussions/categories/q-a)，新想法到 [想法交流区](https://github.com/KKKKhazix/AIHOT/discussions/categories/ideas)，欢迎在 [作品展示区](https://github.com/KKKKhazix/AIHOT/discussions/categories/show-and-tell) 分享你做出的行业热点站。
-
-发现 Bug 或有明确的功能建议，可以 [提交 Issue](https://github.com/KKKKhazix/AIHOT/issues/new/choose)。准备改代码前，先看 [贡献说明](CONTRIBUTING.md)；安全漏洞请走 [私密报告入口](SECURITY.md)。
-
-## 最后
-
-AIHOT 曾经只是我无数个深夜里，一个很小、很小的念头。
-
-我不知道它会被改成什么样子，会走到多远的地方。但这可能就是开源最浪漫的地方。
-
-剩下的路，就交给你们了。
-
-<p align="right">—— 数字生命卡兹克</p>
+| [docs/research-plan.md](docs/research-plan.md) | 执行方案：仓库理解、行业迁移、信源分层、框架落地、数据与成本、实施步骤、示例输出、进度 |
+| [docs/hubble-setup-checklist.md](docs/hubble-setup-checklist.md) | 上线准备清单 |
+| [modules/research/README.md](modules/research/README.md) | 研究模块：数据源、观察清单、事件日历、研究简报、判断档案、复盘、接口 |
+| [AGENTS.md](AGENTS.md) | 仓库规则 |
+| [docs/customize.md](docs/customize.md) | 框架：改成另一个行业的步骤 |
+| [docs/architecture.md](docs/architecture.md) | 框架：三个进程、不变的规则、模块、迁移约定 |
+| [docs/sources.md](docs/sources.md) | 框架：六种信源怎么配 |
+| [docs/selection.md](docs/selection.md) | 框架：精选流程与门槛校准 |
+| [docs/deploy.md](docs/deploy.md) | 框架：部署、更新、备份、成本 |
 
 ## 许可
 
-代码使用 [MIT 许可证](LICENSE)。AIHOT 的名字和 Logo 不在许可范围内。字体有自己的许可，见 [NOTICE](NOTICE)。
+代码沿用上游的 [MIT 许可证](LICENSE)。AIHOT 的名字和 Logo 不在许可范围内，本站不使用。字体许可见 [NOTICE](NOTICE)。
